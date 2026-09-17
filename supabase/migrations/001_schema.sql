@@ -200,7 +200,9 @@ create table assessments (
   corrected_by_human    boolean not null default false,
 
   note                  text,
-  created_by            uuid references auth.users (id),
+  -- Defaulted, not left to the client: an append-only row that cannot say who
+  -- wrote it records the observation but loses the observer.
+  created_by            uuid references auth.users (id) default auth.uid(),
   created_at            timestamptz not null default now(),
 
   constraint assessments_bp_sane
@@ -272,6 +274,30 @@ create trigger assessments_no_delete
 -- moved up a level of care. Escalations ARE mutable — status moves forward as
 -- the case is handled — but they always point back at the immutable assessment
 -- that triggered them.
+--
+-- NOTHING IN THIS SCHEMA CREATES A ROW HERE.
+--
+--   There is no trigger on assessments that raises an escalation for a qizil
+--   result. The application does it, as a second explicit INSERT after the
+--   assessment is written. That is a deliberate choice, not an omission: the
+--   decision to escalate is a clinical act and it belongs in code a reviewer
+--   can read, not hidden in a trigger that fires invisibly on insert.
+--
+--   So: a qizil assessment with no escalation row is possible, and it means
+--   the client did not raise one. It does not mean the score was not red.
+--
+-- pregnancy_id is copied here from the triggering assessment. NOTHING ENFORCES
+-- THAT THE TWO AGREE. A CHECK constraint cannot do it — CHECK may not contain
+-- a subquery, so it cannot look up assessments.pregnancy_id to compare. The
+-- client must set assessment_id and pregnancy_id from the same assessment row.
+-- If they disagree, an escalation points at one woman's assessment while being
+-- filed under another's pregnancy, and nothing here will say so.
+--
+--   If this needs enforcing later, the declarative route is a composite
+--   foreign key: add `unique (id, pregnancy_id)` to assessments, then make
+--   this table's FK `(assessment_id, pregnancy_id) references assessments
+--   (id, pregnancy_id)`. Not done now because it was not asked for, and it
+--   changes the assessments table.
 
 create table escalations (
   id                uuid primary key default gen_random_uuid(),
@@ -289,7 +315,7 @@ create table escalations (
   closed_by         uuid references auth.users (id),
   resolution_note   text,
 
-  created_by        uuid references auth.users (id),
+  created_by        uuid references auth.users (id) default auth.uid(),
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now(),
 
