@@ -152,7 +152,14 @@ create table assessments (
   -- vitals / labs -----------------------------------------------------------
   bp_systolic           smallint,
   bp_diastolic          smallint,
-  hemoglobin            smallint,           -- g/L, not g/dL
+  -- Haemoglobin in g/L. This is settled, not a pending question.
+  -- Uzbek and post-Soviet laboratory forms report haemoglobin in g/L: normal
+  -- is 120-140, and severe anaemia is below 70. The column, the `< 70`
+  -- threshold in src/lib/risk.ts and the 10-250 range check below are all in
+  -- g/L and all agree. Do not "correct" any of them to g/dL — dividing by ten
+  -- would put every real reading outside the range check and stop
+  -- severe_anemia ever firing.
+  hemoglobin            smallint,
   proteinuria           boolean,
   antepartum_bleeding   boolean,
   temperature_c         numeric(4,1),
@@ -239,7 +246,12 @@ create table assessments (
   constraint assessments_fired_factors_is_array
     check (jsonb_typeof(fired_factors) = 'array'),
   constraint assessments_visit_not_future
-    check (visit_date <= current_date)
+    check (visit_date <= current_date),
+
+  -- Redundant for uniqueness, since id is already the primary key. It exists
+  -- so escalations can point at (id, pregnancy_id) as a composite foreign key
+  -- and have the database guarantee the two agree. See the escalations block.
+  constraint assessments_id_pregnancy_unique unique (id, pregnancy_id)
 );
 
 create index assessments_pregnancy_idx on assessments (pregnancy_id, visit_date desc);
@@ -286,22 +298,28 @@ create trigger assessments_no_delete
 --   So: a qizil assessment with no escalation row is possible, and it means
 --   the client did not raise one. It does not mean the score was not red.
 --
--- pregnancy_id is copied here from the triggering assessment. NOTHING ENFORCES
--- THAT THE TWO AGREE. A CHECK constraint cannot do it — CHECK may not contain
--- a subquery, so it cannot look up assessments.pregnancy_id to compare. The
--- client must set assessment_id and pregnancy_id from the same assessment row.
--- If they disagree, an escalation points at one woman's assessment while being
--- filed under another's pregnancy, and nothing here will say so.
+-- pregnancy_id is copied here from the triggering assessment, and THE DATABASE
+-- ENFORCES THAT THE TWO AGREE.
 --
---   If this needs enforcing later, the declarative route is a composite
---   foreign key: add `unique (id, pregnancy_id)` to assessments, then make
---   this table's FK `(assessment_id, pregnancy_id) references assessments
---   (id, pregnancy_id)`. Not done now because it was not asked for, and it
---   changes the assessments table.
+--   The pair (assessment_id, pregnancy_id) is a composite foreign key into
+--   assessments (id, pregnancy_id), backed by the matching unique constraint
+--   on that table. An insert naming an assessment that belongs to a different
+--   pregnancy is rejected outright, so an escalation can never point at one
+--   woman's assessment while being filed under another's pregnancy.
+--
+--   A CHECK constraint could not have done this: CHECK may not contain a
+--   subquery, so it cannot look up assessments.pregnancy_id to compare. The
+--   composite key gets the same guarantee declaratively, with no trigger.
+--
+--   The client still has to set both columns from the same assessment row. The
+--   difference is that getting it wrong is now a failed insert instead of a
+--   silently mis-filed escalation.
 
 create table escalations (
   id                uuid primary key default gen_random_uuid(),
-  assessment_id     uuid not null references assessments (id) on delete restrict,
+  -- No single-column FK on assessment_id: the composite key at the bottom of
+  -- this table covers it and additionally pins the pregnancy.
+  assessment_id     uuid not null,
   pregnancy_id      uuid not null references pregnancies (id) on delete restrict,
 
   status            escalation_status not null default 'ochiq',
@@ -329,7 +347,14 @@ create table escalations (
     end
   ),
   constraint escalations_fired_factors_is_array
-    check (jsonb_typeof(fired_factors) = 'array')
+    check (jsonb_typeof(fired_factors) = 'array'),
+
+  -- The escalation and the assessment it was raised from must belong to the
+  -- same pregnancy. Enforced here rather than trusted to the client.
+  constraint escalations_assessment_matches_pregnancy
+    foreign key (assessment_id, pregnancy_id)
+    references assessments (id, pregnancy_id)
+    on delete restrict
 );
 
 -- One live escalation per assessment — re-raising the same assessment is a
