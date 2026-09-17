@@ -100,7 +100,27 @@ create unique index pregnancies_one_active_per_patient
 -- ---------------------------------------------------------------------------
 -- assessments  (APPEND-ONLY)
 -- ---------------------------------------------------------------------------
-
+--
+-- THE SNAPSHOT RULE — read this before adding a scoring factor.
+--
+--   Every input the risk score is computed from is snapshotted onto THIS row.
+--   Not referenced, not joined, not derived at read time. Copied.
+--
+--   A row here is a permanent record of one visit: the inputs, the score they
+--   produced, and the version of the rules that produced it. It must stay
+--   reproducible forever, from itself alone, with no join to anything mutable.
+--   That is why:
+--     * age_at_assessment is stored as a number, not derived from
+--       patients.birth_date — age changes, the score must not.
+--     * gravida and para are duplicated from pregnancies even though they live
+--       there too — that row can be edited, this one cannot.
+--
+--   IF YOU ADD A FACTOR TO src/lib/risk.ts, ADD ITS COLUMN HERE.
+--   Column names match the AssessmentInput field names in risk.ts exactly, with
+--   one deliberate exception: `age` is stored as `age_at_assessment`.
+--   src/lib/schema-sync.test.ts parses this file and fails the build if a
+--   scoring input has no column. Do not silence that test; add the column.
+--
 create table assessments (
   id                    uuid primary key default gen_random_uuid(),
   pregnancy_id          uuid not null references pregnancies (id) on delete restrict,
@@ -111,20 +131,36 @@ create table assessments (
   -- vitals / labs -----------------------------------------------------------
   bp_systolic           smallint,
   bp_diastolic          smallint,
-  hb                    smallint,           -- haemoglobin, g/L (not g/dL)
+  hemoglobin            smallint,           -- g/L, not g/dL
   proteinuria           boolean not null default false,
-  bleeding              boolean not null default false,   -- antepartum bleeding
+  antepartum_bleeding   boolean not null default false,
   temperature_c         numeric(4,1),
   fetal_movements_ok    boolean,
   edema                 boolean not null default false,
   headache_or_visual    boolean not null default false,
 
-  -- history / context flags available to the score --------------------------
-  multiple_pregnancy    boolean not null default false,
-  prior_cesarean        boolean not null default false,
-  prior_stillbirth      boolean not null default false,
+  -- history / context, all scoring inputs -----------------------------------
+  multiple_gestation    boolean not null default false,
+  prior_caesarean       boolean not null default false,
+  prior_stillbirth_or_neonatal_death boolean not null default false,
   diabetes              boolean not null default false,
   chronic_hypertension  boolean not null default false,
+  prior_preeclampsia    boolean,
+  kidney_disease        boolean,
+  family_history_preeclampsia boolean,
+
+  -- Age as a number, deliberately not a reference to patients.birth_date.
+  -- See the snapshot rule above.
+  age_at_assessment     integer,
+
+  -- Snapshotted from pregnancies so this row stands alone.
+  gravida               integer,
+  para                  integer,
+
+  birth_interval_months integer,
+  bmi                   numeric,
+  travel_minutes_to_facility integer,
+  missed_visits         integer,
 
   -- scoring result, frozen at write time ------------------------------------
   risk_score            smallint not null,
@@ -152,10 +188,27 @@ create table assessments (
   -- Half a blood pressure reading is a data-entry error, not a measurement.
   constraint assessments_bp_paired
     check ((bp_systolic is null) = (bp_diastolic is null)),
-  constraint assessments_hb_sane
-    check (hb is null or hb between 10 and 250),
+  constraint assessments_hemoglobin_sane
+    check (hemoglobin is null or hemoglobin between 10 and 250),
   constraint assessments_ga_sane
     check (gestational_age_weeks is null or gestational_age_weeks between 1 and 45),
+  -- Ranges below are deliberately generous: they catch transposed digits and
+  -- unit mistakes, not unusual patients. None of them encode a scoring
+  -- threshold — thresholds live only in src/lib/risk.ts.
+  constraint assessments_age_sane
+    check (age_at_assessment is null or age_at_assessment between 10 and 60),
+  constraint assessments_gravida_sane
+    check (gravida is null or gravida between 1 and 20),
+  constraint assessments_para_sane
+    check (para is null or para between 0 and 20),
+  constraint assessments_bmi_sane
+    check (bmi is null or bmi between 10 and 100),
+  constraint assessments_birth_interval_sane
+    check (birth_interval_months is null or birth_interval_months between 0 and 600),
+  constraint assessments_travel_sane
+    check (travel_minutes_to_facility is null or travel_minutes_to_facility between 0 and 1440),
+  constraint assessments_missed_visits_sane
+    check (missed_visits is null or missed_visits between 0 and 50),
   constraint assessments_score_sane
     check (risk_score >= 0),
   constraint assessments_rules_version_not_blank

@@ -75,6 +75,51 @@ export interface AssessmentInput {
   birth_interval_months?: number | null
 }
 
+/**
+ * Every field the scorer reads. src/lib/schema-sync.test.ts checks each one has
+ * a column in supabase/migrations/001_schema.sql, so a factor cannot be added
+ * to the score without somewhere to persist the input it scored.
+ *
+ * The `satisfies` clause below rejects a name that is not a real AssessmentInput
+ * key; the ALL_SCORING_FIELDS_LISTED guard rejects an AssessmentInput key that
+ * was never added here. Between them the list cannot silently drift.
+ */
+export const SCORING_INPUT_FIELDS = [
+  'bp_systolic',
+  'bp_diastolic',
+  'proteinuria',
+  'hemoglobin',
+  'antepartum_bleeding',
+  'gestational_age_weeks',
+  'prior_preeclampsia',
+  'chronic_hypertension',
+  'diabetes',
+  'kidney_disease',
+  'prior_stillbirth_or_neonatal_death',
+  'multiple_gestation',
+  'age',
+  'prior_caesarean',
+  'para',
+  'travel_minutes_to_facility',
+  'missed_visits',
+  'gravida',
+  'bmi',
+  'family_history_preeclampsia',
+  'birth_interval_months',
+] as const satisfies readonly (keyof AssessmentInput)[]
+
+export type ScoringInputField = (typeof SCORING_INPUT_FIELDS)[number]
+
+/** Any AssessmentInput key missing from the list above. Should always be never. */
+export type UnlistedScoringField = Exclude<keyof AssessmentInput, ScoringInputField>
+
+/**
+ * Compile-time guard. If you add a field to AssessmentInput and forget to list
+ * it in SCORING_INPUT_FIELDS, this line stops typechecking with
+ * "Type 'true' is not assignable to type 'false'". Add the field to the list.
+ */
+export const ALL_SCORING_FIELDS_LISTED: [UnlistedScoringField] extends [never] ? true : false = true
+
 export interface RiskResult {
   score: number
   zone: RiskZone
