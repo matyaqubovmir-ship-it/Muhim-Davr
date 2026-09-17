@@ -145,7 +145,7 @@ describe('additive points', () => {
 })
 
 describe('missing data', () => {
-  it('all-null input is yashil at 0 with four missing critical fields', () => {
+  it('all-null input is yashil at 0 with five missing critical fields', () => {
     const r = scoreAssessment({
       bp_systolic: null,
       bp_diastolic: null,
@@ -164,21 +164,75 @@ describe('missing data', () => {
       'bp_systolic',
       'bp_diastolic',
       'hemoglobin',
+      'proteinuria',
       'age',
     ])
-    expect(r.missingCriticalFields).toHaveLength(4)
+    expect(r.missingCriticalFields).toHaveLength(5)
+  })
+
+  it('every single field null is yashil at 0 with five missing critical fields', () => {
+    // Every key of AssessmentInput explicitly null, not merely absent. A visit
+    // where nothing was recorded must read as unknown risk, never as a clean
+    // green result.
+    const r = scoreAssessment({
+      bp_systolic: null,
+      bp_diastolic: null,
+      proteinuria: null,
+      hemoglobin: null,
+      antepartum_bleeding: null,
+      gestational_age_weeks: null,
+      prior_preeclampsia: null,
+      chronic_hypertension: null,
+      diabetes: null,
+      kidney_disease: null,
+      prior_stillbirth_or_neonatal_death: null,
+      multiple_gestation: null,
+      age: null,
+      prior_caesarean: null,
+      para: null,
+      travel_minutes_to_facility: null,
+      missed_visits: null,
+      gravida: null,
+      bmi: null,
+      family_history_preeclampsia: null,
+      birth_interval_months: null,
+    })
+    expect(r.score).toBe(0)
+    expect(r.zone).toBe('yashil')
+    expect(r.firedFactors).toEqual([])
+    expect(r.missingCriticalFields).toEqual([
+      'bp_systolic',
+      'bp_diastolic',
+      'hemoglobin',
+      'proteinuria',
+      'age',
+    ])
+    expect(r.missingCriticalFields).toHaveLength(5)
   })
 
   it('an empty object behaves the same as all-null', () => {
     const r = scoreAssessment({})
     expect(r.score).toBe(0)
     expect(r.zone).toBe('yashil')
-    expect(r.missingCriticalFields).toHaveLength(4)
+    expect(r.missingCriticalFields).toHaveLength(5)
   })
 
   it('reports only the critical fields that are actually absent', () => {
     const r = scoreAssessment({ bp_systolic: 120, bp_diastolic: 80, age: 28 })
-    expect(r.missingCriticalFields).toEqual(['hemoglobin'])
+    expect(r.missingCriticalFields).toEqual(['hemoglobin', 'proteinuria'])
+  })
+
+  it('proteinuria recorded as false is present, not missing', () => {
+    // The whole point of the null convention: "checked, none found" is data.
+    const checked = scoreAssessment({ proteinuria: false })
+    expect(checked.missingCriticalFields).not.toContain('proteinuria')
+
+    const notChecked = scoreAssessment({ proteinuria: null })
+    expect(notChecked.missingCriticalFields).toContain('proteinuria')
+
+    // Neither fires the flag, but only one of them is a gap in the record.
+    expect(checked.firedFactors).toEqual([])
+    expect(notChecked.firedFactors).toEqual([])
   })
 
   it('preeclampsia with unknown gestational age still fires, and marks the gap', () => {

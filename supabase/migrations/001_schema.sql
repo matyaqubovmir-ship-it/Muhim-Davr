@@ -115,6 +115,27 @@ create unique index pregnancies_one_active_per_patient
 --     * gravida and para are duplicated from pregnancies even though they live
 --       there too — that row can be edited, this one cannot.
 --
+-- THE NULL CONVENTION — one rule for every clinical column on this table.
+--
+--   null  = not recorded. Nobody looked, or nobody wrote it down.
+--   false = recorded as absent. Somebody checked and found nothing.
+--   true  = recorded as present.
+--
+--   These are three different facts and the table keeps them apart. No clinical
+--   column carries `not null default false`, because that default silently
+--   converts the first case into the second: a midwife who skipped the dipstick
+--   would be stored as "no protein", and a finding that was never looked for
+--   would read as a finding that was ruled out. On a preeclampsia input that is
+--   the difference between an escalation and a green screen.
+--
+--   src/lib/risk.ts matches this: a factor fires only on an explicit true, and
+--   never on null. Absent critical inputs come back in missingCriticalFields so
+--   the UI can show unknown risk instead of a reassuring colour.
+--
+--   corrected_by_human is the one boolean that is legitimately `not null
+--   default false` — it records what the system did, not what a clinician
+--   observed, and "no human edited this" is a fact we always know.
+--
 --   IF YOU ADD A FACTOR TO src/lib/risk.ts, ADD ITS COLUMN HERE.
 --   Column names match the AssessmentInput field names in risk.ts exactly, with
 --   one deliberate exception: `age` is stored as `age_at_assessment`.
@@ -132,19 +153,19 @@ create table assessments (
   bp_systolic           smallint,
   bp_diastolic          smallint,
   hemoglobin            smallint,           -- g/L, not g/dL
-  proteinuria           boolean not null default false,
-  antepartum_bleeding   boolean not null default false,
+  proteinuria           boolean,
+  antepartum_bleeding   boolean,
   temperature_c         numeric(4,1),
   fetal_movements_ok    boolean,
-  edema                 boolean not null default false,
-  headache_or_visual    boolean not null default false,
+  edema                 boolean,
+  headache_or_visual    boolean,
 
   -- history / context, all scoring inputs -----------------------------------
-  multiple_gestation    boolean not null default false,
-  prior_caesarean       boolean not null default false,
-  prior_stillbirth_or_neonatal_death boolean not null default false,
-  diabetes              boolean not null default false,
-  chronic_hypertension  boolean not null default false,
+  multiple_gestation    boolean,
+  prior_caesarean       boolean,
+  prior_stillbirth_or_neonatal_death boolean,
+  diabetes              boolean,
+  chronic_hypertension  boolean,
   prior_preeclampsia    boolean,
   kidney_disease        boolean,
   family_history_preeclampsia boolean,

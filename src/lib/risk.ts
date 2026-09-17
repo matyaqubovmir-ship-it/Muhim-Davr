@@ -44,8 +44,18 @@ export type RiskFactor =
  * Fields whose absence we surface explicitly. Missing data is not low risk, it
  * is unknown risk, and the UI is expected to say so rather than render a
  * reassuring green.
+ *
+ * proteinuria is here because it is an input to an absolute flag: without it
+ * preeclampsia_suspected can never fire, so its absence hides a red zone
+ * exactly the way a missing blood pressure does.
  */
-export const CRITICAL_FIELDS = ['bp_systolic', 'bp_diastolic', 'hemoglobin', 'age'] as const
+export const CRITICAL_FIELDS = [
+  'bp_systolic',
+  'bp_diastolic',
+  'hemoglobin',
+  'proteinuria',
+  'age',
+] as const
 
 export type CriticalField = (typeof CRITICAL_FIELDS)[number]
 

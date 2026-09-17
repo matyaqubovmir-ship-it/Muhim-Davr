@@ -109,6 +109,25 @@ describe('risk.ts and 001_schema.sql agree', () => {
     expect(/create trigger assessments_no_delete/.test(sql)).toBe(true)
   })
 
+  it('keeps the null convention: no clinical boolean defaults to false', () => {
+    // null = not recorded, false = recorded as absent. A `not null default
+    // false` on a clinical column collapses the first into the second, which
+    // is how a skipped dipstick becomes "no protein". corrected_by_human is
+    // exempt: it records what the system did, not what a clinician observed.
+    const offenders = block
+      .split('\n')
+      .filter((line) => /\bboolean\b/.test(line) && /not\s+null/.test(line))
+      .map((line) => line.trim())
+      .filter((line) => !line.startsWith('corrected_by_human'))
+
+    expect(
+      offenders,
+      'These clinical booleans cannot record "not recorded". Drop NOT NULL ' +
+        'DEFAULT false and let them be null — see the null convention above ' +
+        'the assessments table.',
+    ).toEqual([])
+  })
+
   it('has no scoring threshold hard-coded in the migration', () => {
     // Thresholds live in risk.ts only. If a weight ever appears in the schema
     // the two can disagree, and the row would no longer explain its own score.
