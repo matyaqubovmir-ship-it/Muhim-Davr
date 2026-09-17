@@ -16,18 +16,11 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { SCORING_INPUT_FIELDS, type ScoringInputField } from './risk'
+// Imported, not redeclared: the test must check the same mapping the insert
+// actually uses, or it can pass while the app writes to the wrong column.
+import { columnForField } from './assessment-row'
 
 const MIGRATION_PATH = new URL('../../supabase/migrations/001_schema.sql', import.meta.url)
-
-/**
- * Scoring field -> column name, where the two deliberately differ.
- * Anything not listed here must match its field name exactly.
- */
-const COLUMN_OVERRIDES: Partial<Record<ScoringInputField, string>> = {
-  // Stored as a number, never derived from patients.birth_date: age changes,
-  // and a frozen score has to stay reproducible from its own row.
-  age: 'age_at_assessment',
-}
 
 /** Column names that were renamed and must not come back. */
 const RETIRED_COLUMNS = [
@@ -55,7 +48,7 @@ function hasColumn(block: string, column: string): boolean {
 }
 
 function columnFor(field: ScoringInputField): string {
-  return COLUMN_OVERRIDES[field] ?? field
+  return columnForField(field)
 }
 
 describe('risk.ts and 001_schema.sql agree', () => {
