@@ -130,6 +130,11 @@ create table assessments (
   risk_score            smallint not null,
   risk_zone             risk_zone not null,
   fired_factors         jsonb not null default '[]'::jsonb,
+  -- Which version of the point table produced the values above. A frozen score
+  -- is only interpretable if we know the rules behind it. No default on
+  -- purpose: the client must state it, so a score can never be stored
+  -- anonymously. Mirrors RULES_VERSION in src/lib/risk.ts.
+  rules_version         text not null,
 
   -- provenance --------------------------------------------------------------
   -- Raw structured output of the extraction step, stored verbatim for audit.
@@ -153,6 +158,8 @@ create table assessments (
     check (gestational_age_weeks is null or gestational_age_weeks between 1 and 45),
   constraint assessments_score_sane
     check (risk_score >= 0),
+  constraint assessments_rules_version_not_blank
+    check (length(btrim(rules_version)) > 0),
   constraint assessments_fired_factors_is_array
     check (jsonb_typeof(fired_factors) = 'array'),
   constraint assessments_visit_not_future
