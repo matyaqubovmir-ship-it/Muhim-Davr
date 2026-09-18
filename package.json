@@ -11,7 +11,9 @@
     "test": "vitest",
     "test:run": "vitest run",
     "bot": "node --env-file=.env.local bot/index.ts",
-    "broadcast": "node --env-file=.env.local bot/broadcast.ts"
+    "broadcast": "node --env-file=.env.local bot/broadcast.ts",
+    "seed": "node --env-file=.env.local scripts/seed-demo.ts",
+    "demo:worsen": "node --env-file=.env.local scripts/seed-demo.ts --worsen"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

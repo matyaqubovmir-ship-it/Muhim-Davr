@@ -7,8 +7,8 @@
  * about where a value is stored.
  */
 
-import type { FormFieldName, UnscoredField } from './form-fields'
-import type { AssessmentInput, RiskResult, ScoringInputField } from './risk'
+import type { FormFieldName, UnscoredField } from './form-fields.ts'
+import type { AssessmentInput, RiskResult, ScoringInputField } from './risk.ts'
 
 /**
  * Scoring field -> column name, where the two deliberately differ.
