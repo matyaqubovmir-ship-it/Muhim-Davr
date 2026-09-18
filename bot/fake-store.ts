@@ -11,6 +11,7 @@ import type {
   BroadcastTarget,
   EscalationRow,
   LinkedChannel,
+  OpenEscalation,
   PatientReportRow,
   PlannedVisit,
   ReminderKind,
@@ -27,6 +28,8 @@ export interface FakeStore extends BotStore {
   visits: PlannedVisit[]
   claims: Set<string>
   broadcastTargets: Map<string, BroadcastTarget[]>
+  /** What the staff-alert reads see: every escalation, with its status. */
+  escalationFeed: (OpenEscalation & { status: 'ochiq' | 'qabul' | 'yopiq' | 'bekor' })[]
   /** Method names that throw when called. */
   failing: Set<keyof BotStore>
 }
@@ -42,6 +45,7 @@ export function createFakeStore(): FakeStore {
     visits: [],
     claims: new Set(),
     broadcastTargets: new Map(),
+    escalationFeed: [],
     failing: new Set(),
 
     async findChannel(chatId): Promise<LinkedChannel | null> {
@@ -109,6 +113,19 @@ export function createFakeStore(): FakeStore {
     async listDistricts() {
       fail('listDistricts')
       return [...store.broadcastTargets.keys()].sort()
+    },
+    async latestEscalationCreatedAt() {
+      fail('latestEscalationCreatedAt')
+      const times = store.escalationFeed.map((e) => e.createdAt).sort()
+      return times.at(-1) ?? null
+    },
+    async openEscalationsAfter(after, limit) {
+      fail('openEscalationsAfter')
+      return store.escalationFeed
+        .filter((e) => e.status === 'ochiq' && (after === null || e.createdAt > after))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .slice(0, limit)
+        .map(({ status: _status, ...alert }) => alert)
     },
   }
 

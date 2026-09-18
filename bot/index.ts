@@ -27,6 +27,7 @@ import { BOT } from './messages.ts'
 import { botIdOf, readOffset, writeOffset } from './offset.ts'
 import { sendDueReminders } from './reminders.ts'
 import { handleSelfReport } from './self-report.ts'
+import { createStaffAlerter, loadStaffAlertConfig, type StaffAlertConfig } from './staff-alerts.ts'
 import { createSupabaseStore, type BotStore } from './store.ts'
 import { getBotSupabase } from './supabase.ts'
 import { createTelegramClient, type TelegramClient, type TelegramMessage } from './telegram.ts'
@@ -178,6 +179,48 @@ function startReminderSweep(
   return setInterval(sweep, config.reminderIntervalMs)
 }
 
+/**
+ * The specialist's Telegram alert (bot/staff-alerts.ts), when STAFF_ALERT_CHAT_ID
+ * is set. A failed start is logged and retried on the next tick rather than
+ * stopping the bot: the patient channel matters more than this one.
+ */
+function startStaffAlerts(
+  store: BotStore,
+  ensureSession: EnsureSession,
+  telegram: TelegramClient,
+  config: StaffAlertConfig,
+): NodeJS.Timeout {
+  const alerter = createStaffAlerter(store, telegram, config)
+  let started = false
+  let sweeping = false
+  const tick = () => {
+    // A slow sweep must not overlap the next one.
+    if (sweeping) return
+    sweeping = true
+    ensureSession()
+      .then(async () => {
+        if (!started) {
+          await alerter.start()
+          started = true
+          return 0
+        }
+        return alerter.sweep()
+      })
+      .then((relayed) => {
+        if (relayed > 0 && config.send) console.log('[bot] sent ' + relayed + ' staff alert(s)')
+      })
+      .catch((caught: unknown) => {
+        console.error('[bot] staff alert sweep failed: ' + String(caught))
+      })
+      .finally(() => {
+        sweeping = false
+      })
+  }
+
+  tick()
+  return setInterval(tick, config.intervalMs)
+}
+
 async function main(): Promise<void> {
   const config = loadBotConfig()
   const store = createSupabaseStore(await getBotSupabase(config))
@@ -201,6 +244,8 @@ async function main(): Promise<void> {
   process.on('SIGTERM', stop)
 
   const timer = startReminderSweep(store, ensureSession, telegram, config)
+  const staffConfig = loadStaffAlertConfig()
+  const staffTimer = staffConfig === null ? null : startStaffAlerts(store, ensureSession, telegram, staffConfig)
 
   console.log(
     '[bot] polling (auth=' +
@@ -209,11 +254,17 @@ async function main(): Promise<void> {
       Math.round(config.reminderIntervalMs / 60000) +
       ' min)',
   )
+  console.log(
+    staffConfig === null
+      ? '[bot] staff alerts off (set STAFF_ALERT_CHAT_ID to turn them on)'
+      : '[bot] staff alerts to chat ' + staffConfig.chatId + (staffConfig.send ? ' — SENDING' : ' — DRY RUN, set STAFF_ALERTS=send to send'),
+  )
 
   try {
     await pollUntilStopped(store, ensureSession, telegram, botIdOf(config.telegramToken), () => running)
   } finally {
     clearInterval(timer)
+    if (staffTimer !== null) clearInterval(staffTimer)
   }
   console.log('[bot] stopped')
   // The database client keeps a token-refresh timer alive; nothing is left to do.

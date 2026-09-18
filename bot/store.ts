@@ -44,6 +44,17 @@ export interface PatientReportRow {
 
 export type { EscalationRow }
 
+/** An open escalation, as much of it as a specialist's Telegram alert carries. */
+export interface OpenEscalation {
+  id: string
+  /** As Postgres returned it: the watermark staff alerts resume from. */
+  createdAt: string
+  source: 'clinic' | 'telegram'
+  reason: string
+  pregnancyId: string
+  district: string | null
+}
+
 export interface BotStore {
   findChannel(chatId: number): Promise<LinkedChannel | null>
   /** Active pregnancies with this link code. At most two: two means ambiguous. */
@@ -70,6 +81,11 @@ export interface BotStore {
   findBroadcastTargets(tuman: string): Promise<BroadcastTarget[]>
   /** Every tuman with at least one patient, for correcting a misspelt one. */
   listDistricts(): Promise<string[]>
+
+  /** created_at of the newest escalation of any status, or null with none: where staff alerts start. */
+  latestEscalationCreatedAt(): Promise<string | null>
+  /** Escalations still open (ochiq) created after `after`, oldest first. */
+  openEscalationsAfter(after: string | null, limit: number): Promise<OpenEscalation[]>
 }
 
 /** Postgres unique_violation: the row is already there. */
@@ -274,6 +290,39 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
       if (error) throw new Error(`district list failed: ${error.message}`)
       const districts = new Set((data ?? []).map((row) => String(row.district)))
       return [...districts].sort()
+    },
+
+    async latestEscalationCreatedAt() {
+      const { data, error } = await db
+        .from('escalations')
+        .select('created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (error) throw new Error(`latest escalation lookup failed: ${error.message}`)
+      return data && data.length > 0 ? String(data[0].created_at) : null
+    },
+
+    async openEscalationsAfter(after, limit) {
+      let query = db
+        .from('escalations')
+        .select('id, created_at, source, reason, pregnancy_id, pregnancies!escalations_pregnancy_id_fkey(patients(district))')
+        .eq('status', 'ochiq')
+        .order('created_at', { ascending: true })
+        .limit(limit)
+      if (after !== null) query = query.gt('created_at', after)
+      const { data, error } = await query
+      if (error) throw new Error(`open escalation lookup failed: ${error.message}`)
+      return (data ?? []).map((row) => {
+        const patient = one(one(row.pregnancies)?.patients)
+        return {
+          id: String(row.id),
+          createdAt: String(row.created_at),
+          source: row.source === 'telegram' ? 'telegram' : 'clinic',
+          reason: String(row.reason),
+          pregnancyId: String(row.pregnancy_id),
+          district: typeof patient?.district === 'string' ? patient.district : null,
+        }
+      })
     },
   }
 }

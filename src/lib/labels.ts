@@ -456,6 +456,25 @@ export const NOT_FOUND_UI = {
   home: 'Bosh sahifa',
 } as const
 
+/**
+ * The alert a specialist gets on Telegram when an escalation opens
+ * (bot/staff-alerts.ts). Clinician-facing: it goes to a doctor's chat, never
+ * to a patient, which is why it lives here and not in bot/messages.ts.
+ *
+ * NO PATIENT NAME GOES OVER TELEGRAM. A doctor's phone is shared, lost and
+ * screenshotted; the alert says where and why, and the link opens her page in
+ * the app, behind the app's own session.
+ */
+export const STAFF_ALERT = {
+  title: 'Muhim Davr — yangi yo‘llanma (QIZIL)',
+  sourceClinic: 'Manba: akusherka ko‘rigi',
+  sourceTelegram: 'Manba: bemorning o‘z Telegrami',
+  district: 'Tuman',
+  open: 'Ochish',
+  openInApp: 'Ilovada “Yo‘llanmalar” bo‘limini oching.',
+  noName: 'Bemor ismi Telegramda yuborilmaydi.',
+} as const
+
 /** The specialist dashboard (/dashboard). */
 export const DASHBOARD_UI = {
   title: 'Boshqaruv paneli',
