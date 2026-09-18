@@ -309,6 +309,12 @@ function readMode(input: unknown): ExtractMode | null {
   return null
 }
 
+/**
+ * Longer than any real note or message. Past this it is not a midwife
+ * describing a visit, and every character is paid for.
+ */
+export const MAX_TEXT_LENGTH = 4000
+
 export async function handleExtract(input: unknown): Promise<ExtractResponse> {
   const text =
     typeof input === 'object' && input !== null && 'text' in input
@@ -317,6 +323,9 @@ export async function handleExtract(input: unknown): Promise<ExtractResponse> {
 
   if (text.trim() === '') {
     return { status: 400, body: { error: 'empty_text' } }
+  }
+  if (text.length > MAX_TEXT_LENGTH) {
+    return { status: 400, body: { error: 'text_too_long' } }
   }
 
   const mode = readMode(input)
@@ -411,15 +420,60 @@ export async function handleExtract(input: unknown): Promise<ExtractResponse> {
   return { status: 200, body: { fields, raw: response } }
 }
 
+/**
+ * Whether an HTTP request carries a live Supabase session.
+ *
+ * THE ENDPOINT IS OTHERWISE A FREE ANTHROPIC KEY. Every call is billed to
+ * ANTHROPIC_API_KEY, so an endpoint anyone can POST to is one anyone can spend.
+ * The app always has a session (src/lib/supabase.ts signs every device in), so
+ * requiring one costs a real user nothing and turns away everyone else.
+ *
+ * Checked against Supabase's own /auth/v1/user rather than by decoding the JWT
+ * here, so an expired or revoked token is refused too. Fails closed: no
+ * configuration, no network, no answer — no extraction.
+ *
+ * The bot calls handleExtract in process and never comes through here.
+ */
+export async function verifySession(
+  authorization: string | undefined | null,
+  env: Record<string, string | undefined> = process.env,
+  fetchFn: typeof fetch = fetch,
+): Promise<boolean> {
+  const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? '')?.[1]
+  const url = env.VITE_SUPABASE_URL ?? env.SUPABASE_URL
+  const key = env.VITE_SUPABASE_ANON_KEY ?? env.SUPABASE_ANON_KEY
+  if (!token || !url || !key) return false
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 3000)
+  try {
+    const response = await fetchFn(`${url.replace(/\/$/, '')}/auth/v1/user`, {
+      headers: { apikey: key, Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+    return response.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Vercel serverless entry point. */
 export default async function handler(
-  req: { method?: string; body?: unknown },
+  req: { method?: string; body?: unknown; headers?: Record<string, string | string[] | undefined> },
   res: {
     status: (code: number) => { json: (body: unknown) => unknown }
   },
 ): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method_not_allowed' })
+    return
+  }
+
+  const authorization = req.headers?.authorization
+  if (!(await verifySession(Array.isArray(authorization) ? authorization[0] : authorization))) {
+    res.status(401).json({ error: 'unauthorized' })
     return
   }
 

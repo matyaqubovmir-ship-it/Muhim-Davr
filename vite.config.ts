@@ -25,6 +25,14 @@ function devExtractionApi(): Plugin {
           const body: unknown = raw === '' ? {} : JSON.parse(raw)
 
           const module = await server.ssrLoadModule('/api/extract.ts')
+          // Same rule as production: no session, no extraction.
+          const verifySession = module.verifySession as (authorization: string | undefined) => Promise<boolean>
+          if (!(await verifySession(req.headers.authorization))) {
+            res.statusCode = 401
+            res.setHeader('content-type', 'application/json')
+            res.end(JSON.stringify({ error: 'unauthorized' }))
+            return
+          }
           const handleExtract = module.handleExtract as (
             input: unknown,
           ) => Promise<{ status: number; body: unknown }>
@@ -52,6 +60,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   if (env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY
   if (env.ANTHROPIC_MODEL) process.env.ANTHROPIC_MODEL = env.ANTHROPIC_MODEL
+  // The endpoint checks each request's session against Supabase; these two are
+  // already public (they are in the browser bundle), and are needed server-side.
+  if (env.VITE_SUPABASE_URL) process.env.VITE_SUPABASE_URL = env.VITE_SUPABASE_URL
+  if (env.VITE_SUPABASE_ANON_KEY) process.env.VITE_SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY
 
   return {
     plugins: [react(), tailwindcss(), devExtractionApi()],

@@ -7,6 +7,7 @@
  */
 
 import type { FormFieldName } from './form-fields'
+import { getAuthedSupabase } from './supabase'
 
 /** Hard ceiling. A live demo cannot wait longer than this. */
 export const EXTRACTION_TIMEOUT_MS = 8000
@@ -37,6 +38,16 @@ function isFieldValue(value: unknown): value is number | boolean | null {
 }
 
 /**
+ * The session token the endpoint requires (api/extract.ts verifySession). The
+ * endpoint spends the Anthropic key, so it only answers the app's own sessions.
+ */
+async function sessionToken(): Promise<string | null> {
+  const client = await getAuthedSupabase()
+  const { data } = await client.auth.getSession()
+  return data.session?.access_token ?? null
+}
+
+/**
  * Sends the note and returns structured values. Never throws: every path
  * resolves, because an exception escaping here would be a failure of the AI
  * step taking the typed path down with it.
@@ -44,14 +55,20 @@ function isFieldValue(value: unknown): value is number | boolean | null {
  * There is no automatic retry. A retry doubles the wait a midwife is standing
  * through, and she already has a working keyboard.
  */
-export async function extractFields(text: string): Promise<ExtractionOutcome> {
+export async function extractFields(
+  text: string,
+  getToken: () => Promise<string | null> = sessionToken,
+  fetchFn: typeof fetch = fetch,
+): Promise<ExtractionOutcome> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), EXTRACTION_TIMEOUT_MS)
 
   try {
-    const response = await fetch('/api/extract', {
+    const token = await getToken()
+    if (token === null) return { ok: false, reason: 'no_session' }
+    const response = await fetchFn('/api/extract', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({ text }),
       signal: controller.signal,
     })
