@@ -54,6 +54,48 @@ export function toScoringInput(
   return input as AssessmentInput
 }
 
+/** Every form field flattened to the value that will be stored. */
+export function toFieldValues(
+  numbers: NumericFormValues,
+  booleans: BooleanFormValues,
+  unscored: Partial<Record<UnscoredField, boolean | null>>,
+): Partial<Record<FormFieldName, number | boolean | null>> {
+  const values: Partial<Record<FormFieldName, number | boolean | null>> = {}
+  for (const [field, raw] of Object.entries(numbers)) {
+    values[field as FormFieldName] = toNumberOrNull(raw)
+  }
+  for (const [field, value] of Object.entries(booleans)) {
+    values[field as FormFieldName] = value ?? null
+  }
+  for (const [field, value] of Object.entries(unscored)) {
+    values[field as FormFieldName] = value ?? null
+  }
+  return values
+}
+
+/**
+ * True if what is being saved differs from what the model returned, in any
+ * field. Compared value by value across every form field, not by object
+ * identity — the midwife edits the form, not the extraction result, so the two
+ * are always different objects and an identity check would report every
+ * AI-assisted save as corrected.
+ *
+ * A field the model left null that she then filled in counts as a correction:
+ * she supplied something the model did not.
+ */
+export function differsFromExtraction(
+  extracted: Partial<Record<FormFieldName, number | boolean | null>>,
+  saved: Partial<Record<FormFieldName, number | boolean | null>>,
+  fields: readonly FormFieldName[],
+): boolean {
+  for (const field of fields) {
+    const before = extracted[field] ?? null
+    const after = saved[field] ?? null
+    if (before !== after) return true
+  }
+  return false
+}
+
 export interface AssessmentRow {
   [column: string]: string | number | boolean | null | string[]
 }
@@ -63,12 +105,20 @@ export interface AssessmentRow {
  * the row reproduces its own score without joining to anything mutable — see
  * the snapshot rule in supabase/migrations/001_schema.sql.
  */
+export interface Provenance {
+  /** The model's response verbatim, or null when no extraction was run. */
+  extractedJson: unknown
+  /** True when any saved field differs from what the model returned. */
+  correctedByHuman: boolean
+}
+
 export function toAssessmentRow(
   pregnancyId: string,
   numbers: NumericFormValues,
   booleans: BooleanFormValues,
   unscored: Partial<Record<UnscoredField, boolean | null>>,
   result: RiskResult,
+  provenance: Provenance,
 ): AssessmentRow {
   const row: AssessmentRow = { pregnancy_id: pregnancyId.trim() }
 
@@ -87,11 +137,11 @@ export function toAssessmentRow(
   row.fired_factors = result.firedFactors as unknown as string[]
   row.rules_version = result.rulesVersion
 
-  // Typed entry by a person, with no extraction step in front of it. Once the
-  // AI path exists, extracted_json carries the raw output and this flag records
-  // whether the midwife changed it before saving.
-  row.extracted_json = null
-  row.corrected_by_human = false
+  // extracted_json is the model's response stored verbatim, or null when the
+  // midwife typed the visit without running extraction. corrected_by_human says
+  // whether she changed any of what the model produced before saving.
+  row.extracted_json = (provenance.extractedJson ?? null) as AssessmentRow[string]
+  row.corrected_by_human = provenance.correctedByHuman
 
   return row
 }

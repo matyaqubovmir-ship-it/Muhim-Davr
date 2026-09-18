@@ -37,6 +37,14 @@ export const UI = {
 
   saveFailed: 'Saqlashda xatolik yuz berdi. Qayd saqlanmadi.',
   authFailed: 'Tizimga kirib bo‘lmadi. Qayd saqlanmadi.',
+
+  narrativeLabel: 'Bemor haqida o‘z so‘zlaringiz bilan yozing',
+  analyse: 'Tahlil qilish',
+  analysing: 'Tahlil qilinmoqda...',
+  analyseFailed: 'Tahlil qilinmadi, qo‘lda kiriting',
+  aiBadge: 'AI',
+  aiFilledNote:
+    'AI belgisi qo‘yilgan maydonlarni tekshiring va kerak bo‘lsa to‘g‘rilang.',
   savedAs: 'Qayd saqlandi',
 } as const
 

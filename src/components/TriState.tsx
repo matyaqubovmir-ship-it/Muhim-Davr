@@ -1,4 +1,5 @@
 import { UI } from '../lib/labels'
+import { AiBadge } from './AiBadge'
 
 /**
  * Three-state control: Ha / Yo'q / Tekshirilmagan, defaulting to the last.
@@ -11,10 +12,12 @@ export function TriState({
   label,
   value,
   onChange,
+  fromAi = false,
 }: {
   label: string
   value: boolean | null
   onChange: (next: boolean | null) => void
+  fromAi?: boolean
 }) {
   const options: { key: string; label: string; state: boolean | null }[] = [
     { key: 'yes', label: UI.yes, state: true },
@@ -24,7 +27,10 @@ export function TriState({
 
   return (
     <div className="py-2">
-      <div className="mb-1.5 text-sm leading-snug text-slate-800">{label}</div>
+      <div className="mb-1.5 text-sm leading-snug text-slate-800">
+        {label}
+        {fromAi ? <AiBadge /> : null}
+      </div>
       <div role="group" aria-label={label} className="grid grid-cols-3 gap-1.5">
         {options.map((option) => {
           const selected = value === option.state

@@ -1,16 +1,20 @@
 import { useState } from 'react'
 import {
+  ALL_FORM_FIELDS,
   FORM_GROUPS,
   type FormFieldName,
   type UnscoredField,
 } from '../lib/form-fields'
 import { FIELD_LABELS, FIELD_UNITS, GROUP_TITLES, UI } from '../lib/labels'
 import {
+  differsFromExtraction,
   toAssessmentRow,
+  toFieldValues,
   toScoringInput,
   type BooleanFormValues,
   type NumericFormValues,
 } from '../lib/assessment-row'
+import { extractFields, type ExtractedFields } from '../lib/extract-client'
 import { scoreAssessment, type RiskResult } from '../lib/risk'
 import { getAuthedSupabase } from '../lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -18,6 +22,7 @@ import { NumberField } from './NumberField'
 import { TriState } from './TriState'
 
 const UNSCORED: UnscoredField[] = ['edema', 'headache_or_visual']
+const ALL_FIELD_NAMES: FormFieldName[] = ALL_FORM_FIELDS.map((field) => field.name)
 
 function isUnscored(name: FormFieldName): name is UnscoredField {
   return (UNSCORED as FormFieldName[]).includes(name)
@@ -35,11 +40,62 @@ export function EntryForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // --- extraction state ---
+  const [narrative, setNarrative] = useState('')
+  const [extracting, setExtracting] = useState(false)
+  const [extractError, setExtractError] = useState<string | null>(null)
+  /** What the model returned, kept for the corrected_by_human comparison. */
+  const [extracted, setExtracted] = useState<ExtractedFields | null>(null)
+  /** The model's response verbatim, for extracted_json. */
+  const [extractedRaw, setExtractedRaw] = useState<unknown>(null)
+  /** Which fields the model filled, for the AI badge. */
+  const [aiFields, setAiFields] = useState<Set<FormFieldName>>(new Set())
+
   const setNumber = (name: FormFieldName, value: string) =>
     setNumbers((prev) => ({ ...prev, [name]: value }))
 
   const setBoolean = (name: FormFieldName, value: boolean | null) =>
     setBooleans((prev) => ({ ...prev, [name]: value }))
+
+  async function handleExtract() {
+    if (narrative.trim() === '' || extracting) return
+    setExtractError(null)
+    setExtracting(true)
+
+    // No automatic retry: one attempt, then the keyboard.
+    const outcome = await extractFields(narrative)
+    setExtracting(false)
+
+    if (!outcome.ok) {
+      // The form is untouched and still fully usable.
+      setExtractError(UI.analyseFailed)
+      return
+    }
+
+    const filled = new Set<FormFieldName>()
+    const nextNumbers: NumericFormValues = {}
+    const nextBooleans: BooleanFormValues = {}
+
+    for (const field of ALL_FORM_FIELDS) {
+      const value = outcome.fields[field.name]
+      // A field the model left null keeps whatever is already in the form.
+      if (value === null || value === undefined) continue
+
+      if (field.kind === 'number' && typeof value === 'number') {
+        nextNumbers[field.name] = String(value)
+        filled.add(field.name)
+      } else if (field.kind === 'boolean' && typeof value === 'boolean') {
+        nextBooleans[field.name] = value
+        filled.add(field.name)
+      }
+    }
+
+    setNumbers((prev) => ({ ...prev, ...nextNumbers }))
+    setBooleans((prev) => ({ ...prev, ...nextBooleans }))
+    setExtracted(outcome.fields)
+    setExtractedRaw(outcome.raw)
+    setAiFields(filled)
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -62,13 +118,21 @@ export function EntryForm({
       }
     }
 
+    // The score is computed from the form as it stands now — what the midwife
+    // confirmed — never from what the model returned.
     const result = scoreAssessment(toScoringInput(numbers, scoringBooleans))
+
+    const saved = toFieldValues(numbers, scoringBooleans, unscoredBooleans)
+    const correctedByHuman =
+      extracted !== null && differsFromExtraction(extracted, saved, ALL_FIELD_NAMES)
+
     const row = toAssessmentRow(
       pregnancyId,
       numbers,
       scoringBooleans,
       unscoredBooleans,
       result,
+      { extractedJson: extractedRaw, correctedByHuman },
     )
 
     setSaving(true)
@@ -105,6 +169,48 @@ export function EntryForm({
 
   return (
     <form onSubmit={handleSubmit} className="pb-24">
+      {/*
+        The AI path sits above the form and only ever writes into it. It is not
+        a shortcut past the form: the midwife still reads every value in the
+        normal controls and saves the same way she would after typing.
+      */}
+      <section className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+        <label
+          htmlFor="narrative"
+          className="mb-1.5 block text-sm leading-snug text-slate-800"
+        >
+          {UI.narrativeLabel}
+        </label>
+        <textarea
+          id="narrative"
+          rows={4}
+          value={narrative}
+          onChange={(event) => setNarrative(event.target.value)}
+          className="w-full resize-y rounded-md border border-slate-300 bg-white p-3 text-base text-slate-900 focus:border-slate-900 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={handleExtract}
+          disabled={extracting || narrative.trim() === ''}
+          className="mt-2 min-h-11 w-full rounded-md border border-slate-900 bg-white text-sm font-semibold text-slate-900 disabled:opacity-40"
+        >
+          {extracting ? UI.analysing : UI.analyse}
+        </button>
+
+        {extractError ? (
+          <p
+            role="status"
+            className="mt-2 rounded-md border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-700"
+          >
+            {extractError}
+          </p>
+        ) : null}
+
+        {aiFields.size > 0 ? (
+          <p className="mt-2 text-sm leading-snug text-violet-700">{UI.aiFilledNote}</p>
+        ) : null}
+      </section>
+
       <div className="py-2">
         <label
           htmlFor="pregnancy-id"
@@ -134,6 +240,7 @@ export function EntryForm({
                 unit={FIELD_UNITS[field.name]}
                 value={numbers[field.name] ?? ''}
                 onChange={(value) => setNumber(field.name, value)}
+                fromAi={aiFields.has(field.name)}
               />
             ) : (
               <TriState
@@ -141,6 +248,7 @@ export function EntryForm({
                 label={FIELD_LABELS[field.name]}
                 value={booleans[field.name] ?? null}
                 onChange={(value) => setBoolean(field.name, value)}
+                fromAi={aiFields.has(field.name)}
               />
             ),
           )}

@@ -1,3 +1,5 @@
+import { AiBadge } from './AiBadge'
+
 /**
  * Numeric entry. An empty box stays empty and is stored as null — it is never
  * coerced to 0, because "not measured" and "zero" are different facts.
@@ -7,11 +9,13 @@ export function NumberField({
   unit,
   value,
   onChange,
+  fromAi = false,
 }: {
   label: string
   unit?: string
   value: string
   onChange: (next: string) => void
+  fromAi?: boolean
 }) {
   const id = `field-${label.replace(/\s+/g, '-')}`
 
@@ -20,6 +24,7 @@ export function NumberField({
       <label htmlFor={id} className="mb-1.5 block text-sm leading-snug text-slate-800">
         {label}
         {unit ? <span className="ml-1 text-slate-500">({unit})</span> : null}
+        {fromAi ? <AiBadge /> : null}
       </label>
       <input
         id={id}
