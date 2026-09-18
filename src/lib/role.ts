@@ -13,12 +13,12 @@ import type { Route } from './routes'
 
 export type Role = 'midwife' | 'specialist'
 
-type TabRoute = Extract<Route['name'], 'entry' | 'new_patient' | 'dashboard' | 'registry' | 'escalations' | 'patients'>
+type TabRoute = Extract<Route['name'], 'entry' | 'new_patient' | 'visits' | 'dashboard' | 'registry' | 'escalations' | 'patients'>
 
 /** Each role's tabs, in order. The first is where switching to the role lands. */
 export const ROLE_TABS: Record<Role, readonly TabRoute[]> = {
-  midwife: ['entry', 'new_patient'],
-  specialist: ['dashboard', 'registry', 'escalations', 'patients'],
+  midwife: ['entry', 'new_patient', 'visits'],
+  specialist: ['dashboard', 'registry', 'escalations', 'visits', 'patients'],
 }
 
 export function homeFor(role: Role): Route {

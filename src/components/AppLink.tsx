@@ -11,18 +11,21 @@ export function AppLink({
   className,
   style,
   children,
+  'aria-current': ariaCurrent,
 }: {
   to: string
   state?: unknown
   className?: string
   style?: React.CSSProperties
   children: ReactNode
+  'aria-current'?: 'page'
 }) {
   return (
     <a
       href={to}
       className={className}
       style={style}
+      aria-current={ariaCurrent}
       onClick={(event) => {
         // Let the browser handle new-tab and new-window clicks.
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {

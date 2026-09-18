@@ -18,7 +18,8 @@ import { getAuthedSupabase } from './supabase'
 
 export type LiveStatus = 'connecting' | 'live' | 'down'
 
-export type LiveTable = 'assessments' | 'escalations'
+/** visits and pregnancies broadcast once 007 has added them to the publication; before that they are silent, not an error. */
+export type LiveTable = 'assessments' | 'escalations' | 'visits' | 'pregnancies'
 export type LiveEvent = 'INSERT' | 'UPDATE'
 
 /** What a callback receives: the event, and the row as it now is. */

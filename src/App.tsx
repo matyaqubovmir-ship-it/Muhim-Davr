@@ -2,10 +2,10 @@ import { Suspense, lazy, useState, type ReactNode } from 'react'
 import { AppLink } from './components/AppLink'
 import { EntryForm } from './components/EntryForm'
 import { EscalationToasts } from './components/EscalationToasts'
-import { AlertIcon, DashboardIcon, LogoMark, PatientsIcon, RegistryIcon } from './components/Icons'
+import { AlertIcon, CalendarIcon, DashboardIcon, LogoMark, PatientsIcon, PlusIcon, RegistryIcon } from './components/Icons'
 import { ResultScreen } from './components/ResultScreen'
 import { useEscalationAlerts } from './lib/escalation-alerts'
-import { ALERT_UI, NAV_UI, NEW_PATIENT_UI, NOT_FOUND_UI, QUEUE_UI, ROLE_UI, UI } from './lib/labels'
+import { ALERT_UI, NAV_UI, NEW_PATIENT_UI, NOT_FOUND_UI, QUEUE_UI, ROLE_UI, UI, VISITS_UI } from './lib/labels'
 import { navigate, usePathname } from './lib/navigation'
 import type { PregnancyChoice } from './lib/patients'
 import { ROLE_TABS, homeFor, useRole, type Role } from './lib/role'
@@ -20,6 +20,7 @@ const DistrictBoard = lazy(() => import('./components/DistrictBoard').then((m) =
 const PatientsPage = lazy(() => import('./components/PatientsPage').then((m) => ({ default: m.PatientsPage })))
 const PatientPage = lazy(() => import('./components/PatientPage').then((m) => ({ default: m.PatientPage })))
 const EscalationQueue = lazy(() => import('./components/EscalationQueue').then((m) => ({ default: m.EscalationQueue })))
+const VisitsPage = lazy(() => import('./components/VisitsPage').then((m) => ({ default: m.VisitsPage })))
 const NewPatientPage = lazy(() => import('./components/NewPatientPage').then((m) => ({ default: m.NewPatientPage })))
 
 /** While a screen's code arrives: a quiet placeholder, never a bare spinner. */
@@ -41,13 +42,17 @@ const TAB_LABELS: Record<Tab, string> = {
   registry: NAV_UI.registry,
   escalations: NAV_UI.escalations,
   patients: NAV_UI.patients,
+  visits: VISITS_UI.nav,
 }
 
 const TAB_ICONS: Partial<Record<Tab, (props: { size?: number }) => React.ReactNode>> = {
+  entry: PlusIcon,
+  new_patient: PatientsIcon,
   dashboard: DashboardIcon,
   registry: RegistryIcon,
   escalations: AlertIcon,
   patients: PatientsIcon,
+  visits: CalendarIcon,
 }
 
 /** A tab is active on its own route and on the screens it leads to. */
@@ -143,13 +148,16 @@ function SpecialistShell({
         key={tab}
         to={pathFor({ name: tab } as Route)}
         className={[
-          'flex items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors',
+          'flex items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
           layout === 'side' ? 'min-h-10' : 'min-h-9 flex-1 justify-center',
-          active ? 'bg-brand-soft text-brand' : 'text-slate-700 hover:bg-bg hover:text-text-primary',
+          active
+            ? 'bg-brand-soft font-semibold text-brand shadow-[inset_2px_0_0_var(--color-brand)]'
+            : 'text-slate-700 hover:bg-slate-100 hover:text-text-primary',
         ].join(' ')}
       >
         {Icon ? <Icon size={18} /> : null}
-        <span className={layout === 'side' ? 'flex-1' : 'hidden sm:inline'}>{TAB_LABELS[tab]}</span>
+        {/* sr-only, not hidden, on a phone: the icon is decorative and the word is the link's name. */}
+        <span className={layout === 'side' ? 'flex-1' : 'sr-only sm:not-sr-only'}>{TAB_LABELS[tab]}</span>
         {tab === 'escalations' ? <CountBadge count={alerts.openCount} /> : null}
       </AppLink>
     )
@@ -159,7 +167,7 @@ function SpecialistShell({
     <div className="min-h-screen bg-bg">
       <EscalationToasts toasts={alerts.toasts} onDismiss={alerts.dismiss} />
 
-      <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur-md print:hidden">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
           <AppLink to={pathFor({ name: 'dashboard' })} className="mr-auto flex items-center gap-2.5">
             <LogoMark size={32} />
@@ -172,7 +180,7 @@ function SpecialistShell({
             type="button"
             onClick={alerts.toggleMuted}
             aria-pressed={!alerts.muted}
-            className="rounded-md px-2 py-1 text-xs text-text-muted hover:text-text-primary"
+            className="rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-slate-100 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             {alerts.muted ? ALERT_UI.soundOff : ALERT_UI.soundOn}
           </button>
@@ -185,7 +193,7 @@ function SpecialistShell({
       </header>
 
       <div className="mx-auto flex max-w-7xl">
-        <nav className="sticky top-[57px] hidden h-[calc(100vh-57px)] w-52 shrink-0 flex-col gap-1 border-r border-border px-3 py-4 md:flex">
+        <nav className="sticky top-[57px] hidden h-[calc(100vh-57px)] w-56 shrink-0 flex-col gap-1 border-r border-border bg-surface/60 px-3 py-4 md:flex print:hidden">
           {ROLE_TABS.specialist.map((tab) => navLink(tab, 'side'))}
         </nav>
         <main className="min-w-0 flex-1 px-4 md:px-6">{children}</main>
@@ -224,19 +232,24 @@ function MidwifeShell({
           </div>
           <RoleSelect role={role} onChange={onRole} />
         </header>
-        <nav className="mt-2 flex gap-2">
+        <nav className="mt-3 grid grid-cols-3 gap-1 rounded-xl border border-border bg-surface p-1 shadow-[0_1px_2px_rgba(15,23,42,0.05)] sm:inline-grid sm:w-auto print:hidden">
           {ROLE_TABS.midwife.map((tab) => {
             const active = isActive(tab, route)
+            const Icon = TAB_ICONS[tab]
             return (
               <AppLink
                 key={tab}
                 to={pathFor({ name: tab } as Route)}
+                aria-current={active ? 'page' : undefined}
                 className={[
-                  'flex min-h-10 flex-1 items-center justify-center rounded-md px-4 text-sm font-semibold sm:flex-none',
-                  active ? 'bg-brand text-white' : 'border border-border bg-surface text-slate-700 hover:border-slate-400',
+                  'flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                  active
+                    ? 'bg-brand text-white shadow-[0_1px_2px_rgba(15,23,42,0.1),0_4px_10px_-4px_rgba(37,99,235,0.55)]'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-text-primary',
                 ].join(' ')}
               >
-                {TAB_LABELS[tab]}
+                {Icon ? <Icon size={16} /> : null}
+                <span className="truncate">{TAB_LABELS[tab]}</span>
               </AppLink>
             )
           })}
@@ -306,6 +319,15 @@ export default function App() {
         {route.name === 'patients' ? <PatientsPage /> : null}
         {route.name === 'patient' ? <PatientPage key={route.pregnancyId} pregnancyId={route.pregnancyId} /> : null}
         {route.name === 'escalations' ? <EscalationQueue /> : null}
+        {route.name === 'visits' ? (
+          <VisitsPage
+            onRecordVisit={(choice) => {
+              setSaved(null)
+              setPregnancy(choice)
+              navigate(pathFor({ name: 'entry' }))
+            }}
+          />
+        ) : null}
       </Suspense>
       {route.name === 'not_found' ? (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm text-slate-700">
