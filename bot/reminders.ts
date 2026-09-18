@@ -19,7 +19,7 @@
  */
 
 import { addDays, formatISODate, parseISODate } from '../src/lib/schedule.ts'
-import { reminderMorning, reminderTwoDays } from './messages.ts'
+import { reminderMorning, reminderTomorrow, reminderTwoDays } from './messages.ts'
 import type { BotStore, ReminderKind } from './store.ts'
 import type { TelegramClient } from './telegram.ts'
 
@@ -74,12 +74,16 @@ export async function sendDueReminders(
   if (hour < SEND_FROM_HOUR || hour >= SEND_UNTIL_HOUR) return 0
 
   const todayISO = formatISODate(today)
+  const tomorrowISO = formatISODate(addDays(today, 1))
   const inTwoDaysISO = formatISODate(addDays(today, 2))
 
   // Only planned visits of active pregnancies: a completed visit needs no
   // reminder, a missed one needs a phone call from a midwife rather than a
   // message from a bot, and an ended pregnancy must never be reminded.
-  const due = await store.findPlannedVisits([todayISO, inTwoDaysISO])
+  // Tomorrow too: if the two-day reminder never went out — the bot was not
+  // running that day — she gets it the day before instead of not at all. It
+  // is claimed under the same kind, so it can never follow a two-day one.
+  const due = await store.findPlannedVisits([todayISO, tomorrowISO, inTwoDaysISO])
   if (due.length === 0) return 0
 
   const chats = await store.findChatsForPregnancies([
@@ -95,7 +99,9 @@ export async function sendDueReminders(
     const text =
       kind === 'ertalab'
         ? reminderMorning(date, visit.district)
-        : reminderTwoDays(date, visit.district)
+        : visit.targetDate === tomorrowISO
+          ? reminderTomorrow(date, visit.district)
+          : reminderTwoDays(date, visit.district)
 
     for (const chatId of chats.get(visit.pregnancyId) ?? []) {
       // Claim the send first. A refused claim means it already went out.
@@ -108,6 +114,14 @@ export async function sendDueReminders(
         console.error(
           '[bot] reminder to ' + chatId + ' failed: ' + (outcome.description ?? 'unknown'),
         )
+        // A timeout or a rate limit is not her refusing: give the claim back
+        // so the next sweep tries again, instead of the reminder being lost
+        // for good. A blocked bot stays claimed — retrying that is pointless.
+        if (!outcome.blocked) {
+          await store.releaseReminder(visit.visitId, chatId, kind).catch((caught: unknown) => {
+            console.error('[bot] could not release reminder claim: ' + String(caught))
+          })
+        }
       }
     }
   }

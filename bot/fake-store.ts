@@ -106,6 +106,10 @@ export function createFakeStore(): FakeStore {
       store.claims.add(key)
       return true
     },
+    async releaseReminder(visitId, chatId, kind) {
+      fail('releaseReminder')
+      store.claims.delete(`${visitId}|${chatId}|${kind}`)
+    },
     async findBroadcastTargets(tuman) {
       fail('findBroadcastTargets')
       return store.broadcastTargets.get(tuman) ?? []
@@ -113,6 +117,10 @@ export function createFakeStore(): FakeStore {
     async listDistricts() {
       fail('listDistricts')
       return [...store.broadcastTargets.keys()].sort()
+    },
+    async plannedVisitsBetween(since, today) {
+      fail('plannedVisitsBetween')
+      return store.visits.filter((v) => v.targetDate >= since && v.targetDate <= today)
     },
     async latestEscalationCreatedAt() {
       fail('latestEscalationCreatedAt')

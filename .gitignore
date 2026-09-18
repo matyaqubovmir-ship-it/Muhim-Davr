@@ -28,3 +28,5 @@ dist-ssr
 
 # Where the Telegram bot resumes polling (bot/offset.ts)
 bot/.poll-offset.json
+# The last day the specialist's morning digest went out (bot/staff-alerts.ts)
+bot/.staff-digest.json

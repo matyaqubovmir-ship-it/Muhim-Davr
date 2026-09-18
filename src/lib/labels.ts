@@ -481,6 +481,14 @@ export const STAFF_ALERT = {
   open: 'Ochish',
   openInApp: 'Ilovada “Yo‘llanmalar” bo‘limini oching.',
   noName: 'Bemor ismi Telegramda yuborilmaydi.',
+
+  digestTitle: (date: string) => `Muhim Davr — bugungi ko‘riklar (${date})`,
+  digestToday: (n: number) => `Bugun: ${n} ta ko‘rik rejalashtirilgan`,
+  digestNone: 'Bugun rejalashtirilgan ko‘rik yo‘q.',
+  digestNoTelegram: (n: number) => `Telegramsiz — telefon orqali eslatish kerak: ${n}`,
+  digestOverdue: (n: number) => `Muddati o‘tgan (ko‘rik kiritilmagan): ${n}`,
+  digestOpen: 'Kalendar',
+  noNames: 'Bemor ismlari Telegramda yuborilmaydi.',
 } as const
 
 /**

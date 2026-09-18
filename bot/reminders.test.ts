@@ -51,14 +51,44 @@ describe('sendDueReminders', () => {
 
     const count = await sendDueReminders(store, client, tashkent('2026-09-18T08:00:00'))
 
-    expect(count).toBe(3)
-    const byChat = Object.fromEntries(sent.map((m) => [m.chatId, m.text]))
-    expect(byChat[100]).toContain('bugun, 18.09.2026')
-    expect(byChat[101]).toContain('bugun, 18.09.2026')
-    expect(byChat[200]).toContain('20.09.2026')
-    expect(byChat[200]).toContain('2 kundan keyin')
-    // The visit tomorrow is neither today nor two days out.
-    expect(sent.some((m) => m.text.includes('19.09.2026'))).toBe(false)
+    // Tomorrow's visit had no two-day reminder (this store never swept on the
+    // 17th), so it gets the day-before one.
+    expect(count).toBe(4)
+    expect(sent.filter((m) => m.chatId === 100)[0].text).toContain('bugun, 18.09.2026')
+    expect(sent.filter((m) => m.chatId === 101)[0].text).toContain('bugun, 18.09.2026')
+    const toB = sent.filter((m) => m.chatId === 200).map((m) => m.text)
+    expect(toB.some((t) => t.includes('20.09.2026') && t.includes('2 kundan keyin'))).toBe(true)
+    expect(toB.some((t) => t.includes('ertaga, 19.09.2026'))).toBe(true)
+  })
+
+  it('does not send the day-before reminder after a two-day one went out', async () => {
+    const store = storeWithVisits()
+    const { client, sent } = recordingTelegram()
+    await sendDueReminders(store, client, tashkent('2026-09-17T08:00:00'))
+    const onThe17th = sent.length
+    await sendDueReminders(store, client, tashkent('2026-09-18T08:00:00'))
+    const tomorrowTexts = sent.slice(onThe17th).filter((m) => m.text.includes('19.09.2026'))
+    expect(tomorrowTexts).toEqual([])
+  })
+
+  it('tries again next sweep when Telegram fails, instead of losing the reminder', async () => {
+    const store = createFakeStore()
+    store.channels.set(100, 'preg-a')
+    store.visits.push({ visitId: 'v', pregnancyId: 'preg-a', targetDate: '2026-09-18', district: null })
+    let fail = true
+    const sent: string[] = []
+    const client: TelegramClient = {
+      getUpdates: async () => [],
+      sendMessage: async (_chat, text) => {
+        if (fail) return { ok: false, blocked: false, description: 'timeout' }
+        sent.push(text)
+        return { ok: true, blocked: false }
+      },
+    }
+    expect(await sendDueReminders(store, client, tashkent('2026-09-18T08:00:00'))).toBe(0)
+    fail = false
+    expect(await sendDueReminders(store, client, tashkent('2026-09-18T08:05:00'))).toBe(1)
+    expect(sent).toHaveLength(1)
   })
 
   it('never sends the same reminder twice, however often it sweeps', async () => {
@@ -70,7 +100,7 @@ describe('sendDueReminders', () => {
     await sendDueReminders(store, client, now)
     await sendDueReminders(store, client, tashkent('2026-09-18T15:00:00'))
 
-    expect(sent).toHaveLength(3)
+    expect(sent).toHaveLength(4)
   })
 
   it('sends nothing overnight, and sends it at seven instead', async () => {
@@ -81,7 +111,7 @@ describe('sendDueReminders', () => {
     expect(await sendDueReminders(store, client, tashkent('2026-09-17T22:30:00'))).toBe(0)
     expect(sent).toHaveLength(0)
 
-    expect(await sendDueReminders(store, client, tashkent('2026-09-18T07:00:00'))).toBe(3)
+    expect(await sendDueReminders(store, client, tashkent('2026-09-18T07:00:00'))).toBe(4)
   })
 
   it('does not stop the sweep when one send fails', async () => {
@@ -94,8 +124,8 @@ describe('sendDueReminders', () => {
         return calls === 1 ? { ok: false, blocked: true, description: 'blocked' } : { ok: true, blocked: false }
       },
     }
-    expect(await sendDueReminders(store, client, tashkent('2026-09-18T09:00:00'))).toBe(2)
-    expect(calls).toBe(3)
+    expect(await sendDueReminders(store, client, tashkent('2026-09-18T09:00:00'))).toBe(3)
+    expect(calls).toBe(4)
   })
 
   it('sends nothing to a pregnancy with no linked chat', async () => {

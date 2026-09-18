@@ -204,7 +204,9 @@ function startStaffAlerts(
           started = true
           return 0
         }
-        return alerter.sweep()
+        const relayed = await alerter.sweep()
+        await alerter.digest()
+        return relayed
       })
       .then((relayed) => {
         if (relayed > 0 && config.send) console.log('[bot] sent ' + relayed + ' staff alert(s)')

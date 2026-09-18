@@ -76,11 +76,16 @@ export interface BotStore {
    * which is how a reminder is never sent twice.
    */
   claimReminder(visitId: string, chatId: number, kind: ReminderKind): Promise<boolean>
+  /** Gives a claim back after a send that failed, so a later sweep tries again (needs 007). */
+  releaseReminder(visitId: string, chatId: number, kind: ReminderKind): Promise<void>
 
   /** Linked chats of active pregnancies whose patient lives in this tuman. */
   findBroadcastTargets(tuman: string): Promise<BroadcastTarget[]>
   /** Every tuman with at least one patient, for correcting a misspelt one. */
   listDistricts(): Promise<string[]>
+
+  /** Planned contacts of active pregnancies from `since` to `today` inclusive, for the morning digest. */
+  plannedVisitsBetween(since: string, today: string): Promise<PlannedVisit[]>
 
   /** created_at of the newest escalation of any status, or null with none: where staff alerts start. */
   latestEscalationCreatedAt(): Promise<string | null>
@@ -250,6 +255,16 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
       throw new Error(`reminder claim failed: ${error.message}`)
     },
 
+    async releaseReminder(visitId, chatId, kind) {
+      const { error } = await db
+        .from('visit_reminders')
+        .delete()
+        .eq('visit_id', visitId)
+        .eq('telegram_chat_id', chatId)
+        .eq('kind', kind)
+      if (error) throw new Error(`reminder release failed: ${error.message}`)
+    },
+
     async findBroadcastTargets(tuman) {
       const district = tuman.trim()
       const targets: BroadcastTarget[] = []
@@ -290,6 +305,31 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
       if (error) throw new Error(`district list failed: ${error.message}`)
       const districts = new Set((data ?? []).map((row) => String(row.district)))
       return [...districts].sort()
+    },
+
+    async plannedVisitsBetween(since, today) {
+      const { data, error } = await db
+        .from('visits')
+        .select('id, pregnancy_id, target_date, pregnancies!inner(is_active, patients(district))')
+        .eq('status', 'rejalashtirilgan')
+        .gte('target_date', since)
+        .lte('target_date', today)
+        .eq('pregnancies.is_active', true)
+        .limit(2000)
+      if (error) throw new Error(`digest visit lookup failed: ${error.message}`)
+      return ((data ?? []) as Record<string, unknown>[]).flatMap((row) => {
+        const pregnancy = one(row.pregnancies)
+        if (pregnancy?.is_active !== true) return []
+        const district = one(pregnancy.patients)?.district
+        return [
+          {
+            visitId: String(row.id),
+            pregnancyId: String(row.pregnancy_id),
+            targetDate: String(row.target_date),
+            district: typeof district === 'string' ? district : null,
+          },
+        ]
+      })
     },
 
     async latestEscalationCreatedAt() {

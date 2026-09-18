@@ -7,9 +7,16 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { BOT, WORSENS_LINE, formatUzbekDate, reminderMorning, reminderTwoDays } from './messages.ts'
+import { BOT, WORSENS_LINE, formatUzbekDate, reminderMorning, reminderTomorrow, reminderTwoDays } from './messages.ts'
 
-const ALL_STRINGS: [string, string][] = Object.entries(BOT)
+/** Every fixed string, and every reminder as she would receive it. */
+const SAMPLE_DAY = new Date(2026, 8, 20)
+const ALL_STRINGS: [string, string][] = [
+  ...Object.entries(BOT),
+  ['reminderTwoDays', reminderTwoDays(SAMPLE_DAY, 'Urganch')],
+  ['reminderTomorrow', reminderTomorrow(SAMPLE_DAY, 'Urganch')],
+  ['reminderMorning', reminderMorning(SAMPLE_DAY, 'Urganch')],
+]
 
 /** "You're fine", "don't worry", "all normal", "healthy", "no problem"… */
 const REASSURANCE = [

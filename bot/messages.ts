@@ -177,6 +177,21 @@ export function reminderTwoDays(date: Date, district: string | null): string {
   )
 }
 
+/**
+ * The day before, sent only when the two-day reminder never went out — the bot
+ * was not running that day. Same facts, same close; only the day word differs.
+ */
+export function reminderTomorrow(date: Date, district: string | null): string {
+  return (
+    `Eslatma: ertaga, ${dateWithWeekday(date)}, ko‘rigingiz bor.
+
+` +
+    `${destination(district)}
+
+${CANNOT_GO}`
+  )
+}
+
 export function reminderMorning(date: Date, district: string | null): string {
   return (
     `Eslatma: bugun, ${dateWithWeekday(date)}, ko‘rigingiz bor.\n\n` +

@@ -142,3 +142,67 @@ describe('the staff alerter', () => {
     await expect(alerter.sweep()).rejects.toThrow(/start/)
   })
 })
+
+describe('the morning digest', () => {
+  const tashkent = (iso: string) => new Date(iso + '+05:00')
+  const memory = () => {
+    let day: string | null = null
+    return {
+      read: () => day,
+      write: (d: string) => {
+        day = d
+      },
+    }
+  }
+
+  function storeWithDay() {
+    const store = createFakeStore()
+    store.visits.push(
+      { visitId: 'a', pregnancyId: 'p-a', targetDate: '2026-09-18', district: 'Urganch' },
+      { visitId: 'b', pregnancyId: 'p-b', targetDate: '2026-09-18', district: 'Urganch' },
+      { visitId: 'c', pregnancyId: 'p-c', targetDate: '2026-09-18', district: 'Xiva' },
+      { visitId: 'd', pregnancyId: 'p-d', targetDate: '2026-09-10', district: 'Xiva' },
+      { visitId: 'e', pregnancyId: 'p-e', targetDate: '2026-09-25', district: 'Xiva' },
+    )
+    store.channels.set(1, 'p-a')
+    return store
+  }
+
+  it('counts today by district, who must be phoned, and who is overdue — no names', async () => {
+    const { client, sent } = fakeTelegram()
+    const alerter = createStaffAlerter(storeWithDay(), client, SEND, () => {}, memory())
+    expect(await alerter.digest(tashkent('2026-09-18T07:05:00'))).toBe(true)
+    const text = sent[0].text
+    expect(text).toContain('18.09.2026')
+    expect(text).toContain('Bugun: 3 ta ko‘rik rejalashtirilgan: Urganch 2, Xiva 1')
+    expect(text).toContain('telefon orqali eslatish kerak: 2')
+    expect(text).toContain('Muddati o‘tgan (ko‘rik kiritilmagan): 1')
+    expect(text).toContain('https://muhim-davr.example/visits')
+  })
+
+  it('goes out once a day, from seven, however often the bot ticks', async () => {
+    const { client, sent } = fakeTelegram()
+    const alerter = createStaffAlerter(storeWithDay(), client, SEND, () => {}, memory())
+    expect(await alerter.digest(tashkent('2026-09-18T06:59:00'))).toBe(false)
+    expect(await alerter.digest(tashkent('2026-09-18T07:00:00'))).toBe(true)
+    expect(await alerter.digest(tashkent('2026-09-18T12:00:00'))).toBe(false)
+    expect(await alerter.digest(tashkent('2026-09-19T07:30:00'))).toBe(true)
+    expect(sent).toHaveLength(2)
+  })
+
+  it('remembers the day across a restart', async () => {
+    const day = memory()
+    const { client, sent } = fakeTelegram()
+    await createStaffAlerter(storeWithDay(), client, SEND, () => {}, day).digest(tashkent('2026-09-18T08:00:00'))
+    await createStaffAlerter(storeWithDay(), client, SEND, () => {}, day).digest(tashkent('2026-09-18T09:00:00'))
+    expect(sent).toHaveLength(1)
+  })
+
+  it('only logs in a dry run', async () => {
+    const { client, sent } = fakeTelegram()
+    const lines: string[] = []
+    await createStaffAlerter(storeWithDay(), client, DRY, (l) => lines.push(l), memory()).digest(tashkent('2026-09-18T08:00:00'))
+    expect(sent).toEqual([])
+    expect(lines.join('\n')).toMatch(/DRY RUN — would send the morning digest/)
+  })
+})

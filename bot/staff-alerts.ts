@@ -22,8 +22,12 @@
  * a burst of stale alerts on restart would teach a doctor to mute the chat.
  */
 
+import { readFileSync, writeFileSync } from 'node:fs'
 import { STAFF_ALERT } from '../src/lib/labels.ts'
-import type { BotStore, OpenEscalation } from './store.ts'
+import { addDays, formatISODate } from '../src/lib/schedule.ts'
+import { formatUzbekDate } from './messages.ts'
+import { clinicClock } from './reminders.ts'
+import type { BotStore, OpenEscalation, PlannedVisit } from './store.ts'
 import type { TelegramClient } from './telegram.ts'
 
 export interface StaffAlertConfig {
@@ -64,11 +68,79 @@ export function staffAlertText(alert: OpenEscalation, appUrl: string | null): st
   ].join('\n')
 }
 
+// --- the morning digest ------------------------------------------------------
+//
+// The doctor's copy of the day's appointments: sent once a day from 07:00
+// Tashkent, counts only — how many are due, where, how many have no Telegram
+// and must be phoned, how many are overdue — and a link to the calendar.
+
+/** The digest goes out from this hour, Tashkent time. */
+export const DIGEST_HOUR = 7
+/** How far back an unattended planned contact counts as overdue. */
+export const DIGEST_OVERDUE_DAYS = 90
+
+/** Gitignored. The last day a digest went out, so a restart does not send it twice. */
+export const DIGEST_FILE = new URL('./.staff-digest.json', import.meta.url)
+
+export interface Digest {
+  date: Date
+  todayByDistrict: [string, number][]
+  todayTotal: number
+  todayWithoutTelegram: number
+  overdue: number
+}
+
+export function buildDigest(visits: readonly PlannedVisit[], linked: ReadonlySet<string>, today: Date): Digest {
+  const todayISO = formatISODate(today)
+  const due = visits.filter((v) => v.targetDate === todayISO)
+  const byDistrict = new Map<string, number>()
+  for (const v of due) byDistrict.set(v.district ?? '—', (byDistrict.get(v.district ?? '—') ?? 0) + 1)
+  return {
+    date: today,
+    todayByDistrict: [...byDistrict].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'uz')),
+    todayTotal: due.length,
+    todayWithoutTelegram: due.filter((v) => !linked.has(v.pregnancyId)).length,
+    overdue: visits.filter((v) => v.targetDate < todayISO).length,
+  }
+}
+
+export function digestText(digest: Digest, appUrl: string | null): string {
+  const lines = [STAFF_ALERT.digestTitle(formatUzbekDate(digest.date)), '']
+  if (digest.todayTotal === 0) {
+    lines.push(STAFF_ALERT.digestNone)
+  } else {
+    lines.push(STAFF_ALERT.digestToday(digest.todayTotal) + ': ' + digest.todayByDistrict.map(([d, n]) => `${d} ${n}`).join(', '))
+    if (digest.todayWithoutTelegram > 0) lines.push(STAFF_ALERT.digestNoTelegram(digest.todayWithoutTelegram))
+  }
+  if (digest.overdue > 0) lines.push(STAFF_ALERT.digestOverdue(digest.overdue))
+  lines.push('', appUrl === null ? STAFF_ALERT.openInApp : `${STAFF_ALERT.digestOpen}: ${appUrl}/visits`, STAFF_ALERT.noNames)
+  return lines.join('\n')
+}
+
+export function readDigestDay(file: URL = DIGEST_FILE): string | null {
+  try {
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as { day?: unknown }
+    return typeof saved.day === 'string' ? saved.day : null
+  } catch {
+    return null
+  }
+}
+
+export function writeDigestDay(day: string, file: URL = DIGEST_FILE): void {
+  try {
+    writeFileSync(file, JSON.stringify({ day }))
+  } catch (caught) {
+    console.error('[bot] could not save the digest day: ' + String(caught))
+  }
+}
+
 export interface StaffAlerter {
   /** Sets the watermark. Call once, before the first sweep. */
   start(): Promise<void>
   /** Sends (or, in a dry run, logs) every escalation opened since the last sweep. Returns how many. */
   sweep(): Promise<number>
+  /** Sends today's digest if it is 07:00 or later in Tashkent and it has not gone out today. */
+  digest(now?: Date): Promise<boolean>
 }
 
 export function createStaffAlerter(
@@ -76,9 +148,11 @@ export function createStaffAlerter(
   telegram: TelegramClient,
   config: StaffAlertConfig,
   log: (line: string) => void = console.log,
+  digestDay: { read: () => string | null; write: (day: string) => void } = { read: () => readDigestDay(), write: (day) => writeDigestDay(day) },
 ): StaffAlerter {
   let watermark: string | null = null
   let started = false
+  let lastDigest: string | null = digestDay.read()
 
   return {
     async start() {
@@ -110,6 +184,31 @@ export function createStaffAlerter(
         relayed++
       }
       return relayed
+    },
+
+    async digest(now = new Date()) {
+      const { today, hour } = clinicClock(now)
+      const todayISO = formatISODate(today)
+      if (hour < DIGEST_HOUR || lastDigest === todayISO) return false
+
+      const visits = await store.plannedVisitsBetween(formatISODate(addDays(today, -DIGEST_OVERDUE_DAYS)), todayISO)
+      const dueIds = [...new Set(visits.filter((v) => v.targetDate === todayISO).map((v) => v.pregnancyId))]
+      const chats = await store.findChatsForPregnancies(dueIds)
+      const text = digestText(buildDigest(visits, new Set(chats.keys()), today), config.appUrl)
+
+      if (config.send) {
+        const outcome = await telegram.sendMessage(config.chatId, text)
+        // A failed send is tried again next tick; blocked is logged and passed.
+        if (!outcome.ok && !outcome.blocked) {
+          log(`[staff-alert] digest send failed, will retry: ${outcome.description ?? 'unknown'}`)
+          return false
+        }
+      } else {
+        log(`[staff-alert] DRY RUN — would send the morning digest to chat ${config.chatId}:\n${text}`)
+      }
+      lastDigest = todayISO
+      digestDay.write(todayISO)
+      return true
     },
   }
 }
