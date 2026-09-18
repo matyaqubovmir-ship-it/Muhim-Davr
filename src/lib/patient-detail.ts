@@ -83,7 +83,21 @@ export interface PatientDetail {
   hasTelegram: boolean
   /** Newest first. */
   reports: PatientReportEntry[]
+  /** Her stored schedule (visits, 002/004), oldest first — what the reminders read. */
+  visits: StoredVisit[]
 }
+
+export interface StoredVisit {
+  id: string
+  contactNumber: number
+  targetWeek: number
+  targetDate: Date
+  status: 'rejalashtirilgan' | 'bajarilgan' | "o'tkazib yuborilgan"
+  /** The Telegram reminders that went out for this contact (visit_reminders). */
+  remindersSent: ('ikki_kun' | 'ertalab')[]
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // --- pure helpers -----------------------------------------------------------
 
@@ -209,7 +223,11 @@ export async function loadPatientDetail(
   client: SupabaseClient,
   pregnancyId: string,
 ): Promise<PatientDetail | null> {
-  const [pregnancy, zone, assessments, escalations, channels, reports] = await Promise.all([
+  // A mistyped link is no such patient, not a database error with a retry
+  // button that can never succeed.
+  if (!UUID.test(pregnancyId)) return null
+
+  const [pregnancy, zone, assessments, escalations, channels, reports, visits] = await Promise.all([
     client
       .from('pregnancies')
       .select(
@@ -239,12 +257,33 @@ export async function loadPatientDetail(
       .select('id, created_at, message_text, triage_level, matched_signs, escalation_id, extracted_json')
       .eq('pregnancy_id', pregnancyId)
       .order('created_at', { ascending: false }),
+    client
+      .from('visits')
+      .select('id, contact_number, target_week, target_date, status')
+      .eq('pregnancy_id', pregnancyId)
+      .order('target_date', { ascending: true }),
   ])
 
-  for (const result of [pregnancy, zone, assessments, escalations, channels, reports]) {
+  for (const result of [pregnancy, zone, assessments, escalations, channels, reports, visits]) {
     if (result.error) throw new Error(result.error.message)
   }
   if (!pregnancy.data) return null
+
+  const visitRows = (visits.data ?? []) as unknown as Record<string, unknown>[]
+  const sent = new Map<string, ('ikki_kun' | 'ertalab')[]>()
+  if (visitRows.length > 0) {
+    const reminders = await client
+      .from('visit_reminders')
+      .select('visit_id, kind')
+      .in('visit_id', visitRows.map((v) => String(v.id)))
+    if (reminders.error) throw new Error(reminders.error.message)
+    for (const r of (reminders.data ?? []) as Record<string, unknown>[]) {
+      const kinds = sent.get(String(r.visit_id)) ?? []
+      const kind = r.kind === 'ertalab' ? 'ertalab' : 'ikki_kun'
+      if (!kinds.includes(kind)) kinds.push(kind)
+      sent.set(String(r.visit_id), kinds)
+    }
+  }
 
   const row = pregnancy.data as unknown as Record<string, unknown>
   const patient = one(row.patients)
@@ -300,5 +339,20 @@ export async function loadPatientDetail(
       matchedSigns: strings(r.matched_signs),
       escalationId: typeof r.escalation_id === 'string' ? r.escalation_id : null,
     })),
+    visits: visitRows.flatMap((v) => {
+      const targetDate = toDate(v.target_date)
+      if (targetDate === null) return []
+      const status = v.status === 'bajarilgan' || v.status === "o'tkazib yuborilgan" ? v.status : 'rejalashtirilgan'
+      return [
+        {
+          id: String(v.id),
+          contactNumber: Number(v.contact_number),
+          targetWeek: Number(v.target_week),
+          targetDate,
+          status,
+          remindersSent: sent.get(String(v.id)) ?? [],
+        },
+      ]
+    }),
   }
 }

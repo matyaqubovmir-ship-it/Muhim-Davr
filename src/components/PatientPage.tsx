@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  DOCUMENT_UI,
   ESCALATION_SOURCE_LABELS,
   ESCALATION_STATUS_LABELS,
   PATIENT_PAGE_UI,
   TRIAGE_LEVEL_LABELS,
+  VISITS_UI,
   ZONE_COLORS,
   ZONE_NAMES,
   describeFactor,
@@ -25,7 +27,11 @@ import { scheduleAnchor } from '../lib/schedule'
 import { getAuthedSupabase } from '../lib/supabase'
 import { AppLink } from './AppLink'
 import { AssessmentChart } from './AssessmentChart'
+import { Button } from './Button'
+import { PrintIcon } from './Icons'
 import { LinkCode } from './LinkCode'
+import { PatientDocuments } from './PatientDocuments'
+import { StoredSchedule } from './StoredSchedule'
 import { VisitSchedule } from './VisitSchedule'
 import { ZonePill, ZoneSolid } from './Zone'
 
@@ -236,11 +242,23 @@ function Schedule({ detail }: { detail: PatientDetail }) {
         ? PATIENT_PAGE_UI.scheduleRecordedLmp
         : PATIENT_PAGE_UI.scheduleLmp
 
+  // What is stored is what she is reminded of: show that when there is any.
+  if (detail.visits.length > 0) {
+    return (
+      <div className="mt-6">
+        <h2 className={SECTION_TITLE}>{VISITS_UI.storedTitle}</h2>
+        <StoredSchedule visits={detail.visits} hasTelegram={detail.hasTelegram} />
+      </div>
+    )
+  }
   if (detail.currentZone === null) {
     return <p className="text-sm text-slate-600">{PATIENT_PAGE_UI.scheduleNoZone}</p>
   }
   return (
     <>
+      <p className="mb-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs leading-snug text-amber-900">
+        {VISITS_UI.notStored}
+      </p>
       <VisitSchedule lmpDate={anchor} zone={detail.currentZone} />
       {anchor !== null ? (
         <p className="mt-2 text-xs text-text-muted">
@@ -347,9 +365,9 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
       {error !== null ? (
         <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           {PATIENT_PAGE_UI.loadFailed} ({error})
-          <button type="button" onClick={load} className="ml-2 font-semibold underline">
+          <Button size="sm" variant="secondary" onClick={load} className="ml-2">
             {PATIENT_PAGE_UI.retry}
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -412,7 +430,12 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
                 </p>
               ) : null}
             </div>
-            <ZoneBadge zone={detail.currentZone} />
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="secondary" icon={<PrintIcon size={15} />} onClick={() => window.print()} className="print:hidden">
+                {PATIENT_PAGE_UI.print}
+              </Button>
+              <ZoneBadge zone={detail.currentZone} />
+            </div>
           </header>
 
           <section className="mt-6">
@@ -429,7 +452,14 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
             <Schedule detail={detail} />
           </section>
 
-          <LinkCode pregnancyId={detail.header.pregnancyId} />
+          <section className="mt-6">
+            <h2 className={SECTION_TITLE}>{DOCUMENT_UI.title}</h2>
+            <PatientDocuments pregnancyId={detail.header.pregnancyId} />
+          </section>
+
+          <div className="print:hidden">
+            <LinkCode pregnancyId={detail.header.pregnancyId} />
+          </div>
 
           {detail.hasTelegram || detail.reports.length > 0 ? (
             <section className="mt-6">

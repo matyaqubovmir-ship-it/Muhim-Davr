@@ -78,6 +78,7 @@ describe('headerFigures', () => {
     escalations: [],
     hasTelegram: false,
     reports: [],
+    visits: [],
   })
 
   it('works out age, week and a computed due date from the recorded LMP', () => {
@@ -158,6 +159,7 @@ function fakeClient(tables: Record<string, Result>): { client: SupabaseClient; s
           return builder
         },
         eq: () => builder,
+        in: () => builder,
         order: () => builder,
         maybeSingle: async () => result,
         then: (resolve: (value: Result) => unknown) => resolve(result),
@@ -167,6 +169,8 @@ function fakeClient(tables: Record<string, Result>): { client: SupabaseClient; s
   }
   return { client: client as unknown as SupabaseClient, selects }
 }
+
+const PID = 'd8668940-1587-40b2-83a4-294b26d450aa'
 
 const LIVE_SHAPED = {
   pregnancies: {
@@ -222,11 +226,18 @@ const LIVE_SHAPED = {
       { id: 'r-1', created_at: '2026-09-18T12:00:00+05:00', message_text: 'qon ketyapti', triage_level: 'none', matched_signs: [], escalation_id: null, extracted_json: null },
     ],
   },
+  visits: {
+    data: [
+      { id: 'v-1', contact_number: 1, target_week: 26, target_date: '2026-09-18', status: 'bajarilgan' },
+      { id: 'v-2', contact_number: 2, target_week: 30, target_date: '2026-10-16', status: 'rejalashtirilgan' },
+    ],
+  },
+  visit_reminders: { data: [{ visit_id: 'v-2', kind: 'ikki_kun' }] },
 }
 
 describe('loadPatientDetail', () => {
   it('assembles the page from its rows, nulls kept as nulls', async () => {
-    const detail = await loadPatientDetail(fakeClient(LIVE_SHAPED).client, 'p-1')
+    const detail = await loadPatientDetail(fakeClient(LIVE_SHAPED).client, PID)
     expect(detail?.header).toEqual(
       expect.objectContaining({ fullName: 'Test Bemor', gravida: 2, para: 1, lmpDate: d(2026, 4, 3), eddDate: null }),
     )
@@ -236,29 +247,40 @@ describe('loadPatientDetail', () => {
     )
     expect(detail?.escalations[0]).toEqual(expect.objectContaining({ status: 'ochiq', source: 'clinic', acknowledgedAt: null }))
     expect(detail?.hasTelegram).toBe(false)
+    // The stored schedule, as the reminders read it, with what was sent.
+    expect(detail?.visits.map((v) => [v.targetWeek, v.status, v.remindersSent])).toEqual([
+      [26, 'bajarilgan', []],
+      [30, 'rejalashtirilgan', ['ikki_kun']],
+    ])
+  })
+
+  it('is null for a mistyped link, without asking the database', async () => {
+    const { client, selects } = fakeClient(LIVE_SHAPED)
+    expect(await loadPatientDetail(client, 'abc')).toBe(null)
+    expect(selects).toEqual({})
   })
 
   it('is null for a pregnancy that does not exist', async () => {
-    expect(await loadPatientDetail(fakeClient({ ...LIVE_SHAPED, pregnancies: { data: null } }).client, 'nope')).toBe(null)
+    expect(await loadPatientDetail(fakeClient({ ...LIVE_SHAPED, pregnancies: { data: null } }).client, PID)).toBe(null)
   })
 
   it('shows no zone rather than a guessed one when the view has none', async () => {
     const detail = await loadPatientDetail(
       fakeClient({ ...LIVE_SHAPED, latest_assessment_per_pregnancy: { data: null } }).client,
-      'p-1',
+      PID,
     )
     expect(detail?.currentZone).toBe(null)
   })
 
   it('fails loudly rather than rendering a partial page', async () => {
     await expect(
-      loadPatientDetail(fakeClient({ ...LIVE_SHAPED, escalations: { error: { message: 'denied' } } }).client, 'p-1'),
+      loadPatientDetail(fakeClient({ ...LIVE_SHAPED, escalations: { error: { message: 'denied' } } }).client, PID),
     ).rejects.toThrow('denied')
   })
 
   it('selects only columns the migrations define', async () => {
     const { client, selects } = fakeClient(LIVE_SHAPED)
-    await loadPatientDetail(client, 'p-1')
+    await loadPatientDetail(client, PID)
     const dir = new URL('../../supabase/migrations/', import.meta.url)
     const sql = readdirSync(dir)
       .map((file) => readFileSync(new URL(file, dir), 'utf8'))
