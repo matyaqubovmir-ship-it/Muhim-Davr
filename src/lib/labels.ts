@@ -456,8 +456,53 @@ export const NOT_FOUND_UI = {
   home: 'Bosh sahifa',
 } as const
 
+/** The specialist dashboard (/dashboard). */
+export const DASHBOARD_UI = {
+  title: 'Boshqaruv paneli',
+  subtitle: 'Barcha tumanlar bo‘yicha joriy holat — jonli yangilanadi.',
+  updated: 'Yangilandi',
+  loadFailed: 'Panelni yuklab bo‘lmadi.',
+
+  tileActive: 'Faol homiladorlik',
+  tileQizil: 'Qizil zonada',
+  tileQizilOf: 'faollarning',
+  tileOpen: 'Ochiq yo‘llanma',
+  tileOldest: 'eng eskisi',
+  tileNoneOpen: 'hammasi ko‘rib chiqilgan',
+  tileAvgAck: 'O‘rtacha qabul vaqti',
+  tileAvgAckNote: 'oxirgi 30 kun',
+  tileOverdue: 'Ko‘rik muddati o‘tgan',
+  tileTelegram: 'Telegramga ulangan',
+  tileTelegramNote: 'bemor chati',
+
+  zonesTitle: 'Tumanlar bo‘yicha zonalar',
+  zonesNote: 'Har bir ustun bitta zona — ranglar bir-biriga tegmaydi, zona joylashuvidan o‘qiladi.',
+  tableView: 'Jadval ko‘rinishi',
+
+  activityTitle: 'Oxirgi 14 kun',
+  assessmentsPerDay: 'Baholar, kuniga',
+  escalationsPerDay: 'Yangi yo‘llanmalar, kuniga',
+  day: 'Kun',
+
+  attentionTitle: 'Diqqat talab qiladi',
+  attentionNote: 'Qizil zonadagilar va ko‘rigi o‘tib ketganlar',
+  attentionEmpty: 'Hozir diqqat talab qiladigan bemor yo‘q.',
+  seeAll: 'Hammasi',
+
+  feedTitle: 'So‘nggi faollik',
+  feedEmpty: 'Hali faollik yo‘q.',
+  feedAssessment: 'Baho saqlandi',
+  feedAssessmentPatient: 'Bemor uydan yubordi',
+  feedEscalationClinic: 'Yo‘llanma ochildi (klinika)',
+  feedEscalationTelegram: 'Yo‘llanma ochildi (Telegram)',
+  feedTelegram: 'Telegram xabari',
+  feedTelegramUnprocessed: 'Telegram xabari — qayta ishlanmagan',
+  ago: 'oldin',
+} as const
+
 /** The specialist's shell: its nav and its bell. */
 export const NAV_UI = {
+  dashboard: 'Panel',
   registry: 'Reyestr',
   escalations: 'Yo‘llanmalar',
   patients: 'Bemorlar',

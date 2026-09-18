@@ -1,13 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { Suspense, lazy, useState, type ReactNode } from 'react'
 import { AppLink } from './components/AppLink'
-import { DistrictBoard } from './components/DistrictBoard'
 import { EntryForm } from './components/EntryForm'
-import { EscalationQueue } from './components/EscalationQueue'
 import { EscalationToasts } from './components/EscalationToasts'
-import { NewPatientPage } from './components/NewPatientPage'
-import { PatientPage } from './components/PatientPage'
-import { PatientsPage } from './components/PatientsPage'
-import { RegistryOverview } from './components/RegistryOverview'
+import { AlertIcon, DashboardIcon, LogoMark, PatientsIcon, RegistryIcon } from './components/Icons'
 import { ResultScreen } from './components/ResultScreen'
 import { useEscalationAlerts } from './lib/escalation-alerts'
 import { ALERT_UI, NAV_UI, NEW_PATIENT_UI, NOT_FOUND_UI, QUEUE_UI, ROLE_UI, UI } from './lib/labels'
@@ -17,9 +12,30 @@ import { ROLE_TABS, homeFor, useRole, type Role } from './lib/role'
 import { parseRoute, pathFor, type Route } from './lib/routes'
 import type { SavedVisit } from './lib/visit-followup'
 
+// The specialist's screens load on first visit, so a midwife's phone never
+// downloads the dashboard, the charts or the queue it will not open.
+const Dashboard = lazy(() => import('./components/Dashboard').then((m) => ({ default: m.Dashboard })))
+const RegistryOverview = lazy(() => import('./components/RegistryOverview').then((m) => ({ default: m.RegistryOverview })))
+const DistrictBoard = lazy(() => import('./components/DistrictBoard').then((m) => ({ default: m.DistrictBoard })))
+const PatientsPage = lazy(() => import('./components/PatientsPage').then((m) => ({ default: m.PatientsPage })))
+const PatientPage = lazy(() => import('./components/PatientPage').then((m) => ({ default: m.PatientPage })))
+const EscalationQueue = lazy(() => import('./components/EscalationQueue').then((m) => ({ default: m.EscalationQueue })))
+const NewPatientPage = lazy(() => import('./components/NewPatientPage').then((m) => ({ default: m.NewPatientPage })))
+
+/** While a screen's code arrives: a quiet placeholder, never a bare spinner. */
+function ScreenLoading() {
+  return (
+    <div className="mt-5 space-y-3" aria-hidden="true">
+      <div className="h-6 w-56 animate-pulse rounded bg-slate-200" />
+      <div className="h-40 animate-pulse rounded-xl border border-border bg-surface" />
+    </div>
+  )
+}
+
 type Tab = (typeof ROLE_TABS)[Role][number]
 
 const TAB_LABELS: Record<Tab, string> = {
+  dashboard: NAV_UI.dashboard,
   entry: QUEUE_UI.tabEntry,
   new_patient: NEW_PATIENT_UI.tab,
   registry: NAV_UI.registry,
@@ -27,8 +43,16 @@ const TAB_LABELS: Record<Tab, string> = {
   patients: NAV_UI.patients,
 }
 
+const TAB_ICONS: Partial<Record<Tab, (props: { size?: number }) => React.ReactNode>> = {
+  dashboard: DashboardIcon,
+  registry: RegistryIcon,
+  escalations: AlertIcon,
+  patients: PatientsIcon,
+}
+
 /** A tab is active on its own route and on the screens it leads to. */
 function isActive(tab: Tab, route: Route): boolean {
+  if (tab === 'dashboard') return route.name === 'dashboard'
   if (tab === 'registry') return route.name === 'registry' || route.name === 'district'
   if (tab === 'patients') return route.name === 'patients' || route.name === 'patient'
   return route.name === tab
@@ -86,10 +110,7 @@ function Bell({ count }: { count: number | null }) {
       className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-700 hover:bg-bg hover:text-text-primary"
     >
       <span className="sr-only">{NAV_UI.bell}</span>
-      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-      </svg>
+      <AlertIcon size={20} />
       <span className="absolute -top-1 -right-1">
         <CountBadge count={count} />
       </span>
@@ -116,17 +137,19 @@ function SpecialistShell({
 }) {
   const navLink = (tab: Tab, layout: 'side' | 'row') => {
     const active = isActive(tab, route)
+    const Icon = TAB_ICONS[tab]
     return (
       <AppLink
         key={tab}
         to={pathFor({ name: tab } as Route)}
         className={[
-          'flex items-center justify-between gap-2 rounded-md px-3 text-sm font-medium',
-          layout === 'side' ? 'min-h-9' : 'min-h-9 flex-1 justify-center',
+          'flex items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors',
+          layout === 'side' ? 'min-h-10' : 'min-h-9 flex-1 justify-center',
           active ? 'bg-brand-soft text-brand' : 'text-slate-700 hover:bg-bg hover:text-text-primary',
         ].join(' ')}
       >
-        {TAB_LABELS[tab]}
+        {Icon ? <Icon size={18} /> : null}
+        <span className={layout === 'side' ? 'flex-1' : 'hidden sm:inline'}>{TAB_LABELS[tab]}</span>
         {tab === 'escalations' ? <CountBadge count={alerts.openCount} /> : null}
       </AppLink>
     )
@@ -138,10 +161,13 @@ function SpecialistShell({
 
       <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
-          <div className="mr-auto">
-            <div className="text-base font-semibold tracking-tight text-text-primary">{UI.appTitle}</div>
-            <div className="text-xs text-text-muted">{UI.appSubtitle}</div>
-          </div>
+          <AppLink to={pathFor({ name: 'dashboard' })} className="mr-auto flex items-center gap-2.5">
+            <LogoMark size={32} />
+            <div>
+              <div className="text-base leading-tight font-semibold tracking-tight text-text-primary">{UI.appTitle}</div>
+              <div className="text-xs text-text-muted">{UI.appSubtitle}</div>
+            </div>
+          </AppLink>
           <button
             type="button"
             onClick={alerts.toggleMuted}
@@ -189,9 +215,12 @@ function MidwifeShell({
     <div className="min-h-screen bg-bg">
       <div className={['mx-auto px-4', wide ? 'max-w-5xl' : 'max-w-lg'].join(' ')}>
         <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 pt-5 pb-1">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-text-primary">{UI.appTitle}</h1>
-            <p className="text-sm text-text-muted">{UI.appSubtitle}</p>
+          <div className="flex items-center gap-2.5">
+            <LogoMark size={36} />
+            <div>
+              <h1 className="text-lg leading-tight font-semibold tracking-tight text-text-primary">{UI.appTitle}</h1>
+              <p className="text-sm text-text-muted">{UI.appSubtitle}</p>
+            </div>
           </div>
           <RoleSelect role={role} onChange={onRole} />
         </header>
@@ -261,20 +290,23 @@ export default function App() {
       </div>
 
       {/* The rest mount on arrival, so each one is read fresh when opened. */}
-      {route.name === 'new_patient' ? (
-        <NewPatientPage
-          onRecordVisit={(choice) => {
-            setSaved(null)
-            setPregnancy(choice)
-            navigate(pathFor({ name: 'entry' }))
-          }}
-        />
-      ) : null}
-      {route.name === 'registry' ? <RegistryOverview /> : null}
-      {route.name === 'district' ? <DistrictBoard key={route.district} district={route.district} /> : null}
-      {route.name === 'patients' ? <PatientsPage /> : null}
-      {route.name === 'patient' ? <PatientPage key={route.pregnancyId} pregnancyId={route.pregnancyId} /> : null}
-      {route.name === 'escalations' ? <EscalationQueue /> : null}
+      <Suspense fallback={<ScreenLoading />}>
+        {route.name === 'new_patient' ? (
+          <NewPatientPage
+            onRecordVisit={(choice) => {
+              setSaved(null)
+              setPregnancy(choice)
+              navigate(pathFor({ name: 'entry' }))
+            }}
+          />
+        ) : null}
+        {route.name === 'dashboard' ? <Dashboard /> : null}
+        {route.name === 'registry' ? <RegistryOverview /> : null}
+        {route.name === 'district' ? <DistrictBoard key={route.district} district={route.district} /> : null}
+        {route.name === 'patients' ? <PatientsPage /> : null}
+        {route.name === 'patient' ? <PatientPage key={route.pregnancyId} pregnancyId={route.pregnancyId} /> : null}
+        {route.name === 'escalations' ? <EscalationQueue /> : null}
+      </Suspense>
       {route.name === 'not_found' ? (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm text-slate-700">
           {NOT_FOUND_UI.title}{' '}

@@ -2,7 +2,7 @@
  * The app's routes, as data. Pure: parse a path into a route and build a path
  * from one, so every URL the app produces is one it can read back.
  *
- * Hand-rolled rather than a router dependency: there are eight paths and none of
+ * Hand-rolled rather than a router dependency: there are nine paths and none of
  * them nests, and a 40-line table is easier to read under time pressure than a
  * library's conventions.
  */
@@ -12,6 +12,7 @@ import type { RiskZone } from './risk'
 export type Route =
   | { name: 'entry' }
   | { name: 'escalations' }
+  | { name: 'dashboard' }
   | { name: 'registry' }
   | { name: 'district'; district: string }
   | { name: 'patient'; pregnancyId: string }
@@ -39,6 +40,7 @@ export function parseRoute(pathname: string): Route {
 
   if (parts.length === 0 || (parts.length === 1 && parts[0] === 'entry')) return { name: 'entry' }
   if (parts.length === 1 && parts[0] === 'escalations') return { name: 'escalations' }
+  if (parts.length === 1 && parts[0] === 'dashboard') return { name: 'dashboard' }
   if (parts.length === 1 && parts[0] === 'registry') return { name: 'registry' }
   if (parts.length === 1 && parts[0] === 'patients') return { name: 'patients' }
 
@@ -60,6 +62,8 @@ export function pathFor(route: Route): string {
       return '/'
     case 'escalations':
       return '/escalations'
+    case 'dashboard':
+      return '/dashboard'
     case 'registry':
       return '/registry'
     case 'district':

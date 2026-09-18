@@ -9,6 +9,7 @@ describe('parseRoute', () => {
     ['/registry/', { name: 'registry' }],
     ['/registry/Urganch', { name: 'district', district: 'Urganch' }],
     ['/escalations', { name: 'escalations' }],
+    ['/dashboard', { name: 'dashboard' }],
     ['/patients/d8668940-1587-40b2-83a4-294b26d450aa', { name: 'patient', pregnancyId: 'd8668940-1587-40b2-83a4-294b26d450aa' }],
     ['/patients/new', { name: 'new_patient' }],
     ['/patients', { name: 'patients' }],

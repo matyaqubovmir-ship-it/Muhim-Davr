@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
 import { PATIENT_PAGE_UI, ZONE_COLORS, ZONE_NAMES } from '../lib/labels'
 import { niceDomain, slotLabels, ticks, type AssessmentPoint } from '../lib/patient-detail'
+import { useWidth } from '../lib/use-width'
 
 /**
  * Series colours: the first three slots of the dataviz reference palette,
@@ -19,20 +19,6 @@ const AXIS_TEXT = '#64748b'
 const LABEL_TEXT = '#475569'
 
 const MARGIN = { top: 10, right: 70, bottom: 34, left: 40 }
-
-/** The card's width, tracked, so the chart is drawn at real pixel size and its text never scales. */
-function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
-  const ref = useRef<T>(null)
-  const [width, setWidth] = useState(0)
-  useEffect(() => {
-    const element = ref.current
-    if (element === null) return
-    const observer = new ResizeObserver(([entry]) => setWidth(Math.floor(entry.contentRect.width)))
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-  return [ref, width]
-}
 
 interface Series {
   key: keyof typeof SERIES
