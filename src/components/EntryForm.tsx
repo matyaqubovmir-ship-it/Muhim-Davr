@@ -32,7 +32,12 @@ function isUnscored(name: FormFieldName): name is UnscoredField {
 export function EntryForm({
   onSaved,
 }: {
-  onSaved: (result: RiskResult, assessmentId: string, lmpDate: Date | null) => void
+  onSaved: (
+    result: RiskResult,
+    assessmentId: string,
+    pregnancyId: string,
+    lmpDate: Date | null,
+  ) => void
 }) {
   const [pregnancyId, setPregnancyId] = useState('')
   const [numbers, setNumbers] = useState<NumericFormValues>({})
@@ -168,7 +173,7 @@ export function EntryForm({
         ? estimateLmpFromGestationalAge(new Date(), gaWeeks)
         : null
 
-      onSaved(result, String(data?.id ?? ''), lmpDate)
+      onSaved(result, String(data?.id ?? ''), pregnancyId.trim(), lmpDate)
     } catch (caught) {
       setError(`${UI.saveFailed} (${(caught as Error).message})`)
     } finally {

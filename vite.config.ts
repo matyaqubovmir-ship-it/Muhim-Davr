@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss(), devExtractionApi()],
     test: {
       environment: 'node',
-      include: ['src/**/*.test.ts'],
+      include: ['src/**/*.test.ts', 'bot/**/*.test.ts'],
     },
   }
 })

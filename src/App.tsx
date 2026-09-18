@@ -1,19 +1,33 @@
 import { useState } from 'react'
 import { EntryForm } from './components/EntryForm'
+import { EscalationQueue } from './components/EscalationQueue'
 import { ResultScreen } from './components/ResultScreen'
-import { UI } from './lib/labels'
+import { QUEUE_UI, UI } from './lib/labels'
 import type { RiskResult } from './lib/risk'
 
 interface Saved {
   result: RiskResult
   assessmentId: string
+  pregnancyId: string
   /** Anchor for the visit schedule. Null when gestational age was not recorded. */
   lmpDate: Date | null
 }
 
-/** One route: the entry form, then the result for what was just saved. */
+type Tab = 'entry' | 'queue'
+
+/**
+ * Two views: the midwife's entry form (then the result for what was just
+ * saved), and the doctor's escalation queue.
+ */
 export default function App() {
+  const [tab, setTab] = useState<Tab>('entry')
   const [saved, setSaved] = useState<Saved | null>(null)
+
+  const tabClass = (active: boolean) =>
+    [
+      'min-h-10 flex-1 rounded-md text-sm font-semibold',
+      active ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-300',
+    ].join(' ')
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -25,20 +39,36 @@ export default function App() {
           <p className="text-sm text-slate-500">{UI.appSubtitle}</p>
         </header>
 
-        {saved ? (
-          <ResultScreen
-            result={saved.result}
-            assessmentId={saved.assessmentId}
-            lmpDate={saved.lmpDate}
-            onNewEntry={() => setSaved(null)}
-          />
-        ) : (
-          <EntryForm
-            onSaved={(result, assessmentId, lmpDate) =>
-              setSaved({ result, assessmentId, lmpDate })
-            }
-          />
-        )}
+        <nav className="mt-2 flex gap-2">
+          <button type="button" className={tabClass(tab === 'entry')} onClick={() => setTab('entry')}>
+            {QUEUE_UI.tabEntry}
+          </button>
+          <button type="button" className={tabClass(tab === 'queue')} onClick={() => setTab('queue')}>
+            {QUEUE_UI.tabQueue}
+          </button>
+        </nav>
+
+        {/* Hidden rather than unmounted, so a half-typed visit survives a look at the queue. */}
+        <div className={tab === 'entry' ? '' : 'hidden'}>
+          {saved ? (
+            <ResultScreen
+              result={saved.result}
+              assessmentId={saved.assessmentId}
+              pregnancyId={saved.pregnancyId}
+              lmpDate={saved.lmpDate}
+              onNewEntry={() => setSaved(null)}
+            />
+          ) : (
+            <EntryForm
+              onSaved={(result, assessmentId, pregnancyId, lmpDate) =>
+                setSaved({ result, assessmentId, pregnancyId, lmpDate })
+              }
+            />
+          )}
+        </div>
+
+        {/* Mounted on open, so the queue is fetched fresh each time it is viewed. */}
+        {tab === 'queue' ? <EscalationQueue /> : null}
       </div>
     </div>
   )

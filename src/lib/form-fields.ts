@@ -7,7 +7,8 @@
  * form state can be handed to scoreAssessment with no translation step.
  */
 
-import type { ScoringInputField } from './risk'
+// .ts extension: reached from bot/ through labels.ts, under Node resolution.
+import type { ScoringInputField } from './risk.ts'
 
 /** Recorded on the assessment but not read by the scorer (yet). */
 export type UnscoredField = 'edema' | 'headache_or_visual'

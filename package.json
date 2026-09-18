@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "bot": "node --env-file=.env.local bot/index.ts",
+    "broadcast": "node --env-file=.env.local bot/broadcast.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

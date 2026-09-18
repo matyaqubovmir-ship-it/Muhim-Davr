@@ -1,5 +1,11 @@
 /**
- * All user-facing Uzbek copy, in one file.
+ * All CLINICIAN-facing Uzbek copy, in one file.
+ *
+ * The patient's side of the system speaks to a different reader under different
+ * rules — no diagnosis, no reassurance, no medicine — and its copy lives in
+ * bot/messages.ts. Keeping the two apart is not tidiness: a string safe on a
+ * midwife's screen, next to a score and a factor list she was trained to read,
+ * can be unsafe alone on a patient's phone.
  *
  * This is placeholder wording written to be reasonable, not final. It is kept
  * here rather than inline in the components so the final copy can be dropped in
@@ -8,8 +14,11 @@
  * Latin script, as used in Uzbekistan.
  */
 
-import type { RiskFactor, RiskZone } from './risk'
-import type { FormFieldName } from './form-fields'
+// Explicit .ts extensions: bot/ imports this file under Node's own module
+// resolution, which does not guess extensions the way the Vite bundler does.
+import type { RiskFactor, RiskZone } from './risk.ts'
+import type { FormFieldName } from './form-fields.ts'
+import type { DangerSign } from './danger-signs.ts'
 
 export const UI = {
   appTitle: 'ONA',
@@ -199,3 +208,69 @@ export const MISSING_FIELD_NAMES = {
   proteinuria: 'siydikda oqsil',
   age: 'yoshi',
 } as const
+
+/**
+ * WHO danger signs, named for a clinician reading the escalation queue.
+ *
+ * Which of these is an emergency is not expressed here — that is the fixed list
+ * in src/lib/danger-signs.ts. These are only names.
+ */
+export const DANGER_SIGN_NAMES: Record<DangerSign, string> = {
+  vaginal_bleeding: 'Qindan qon ketishi',
+  convulsions: 'Tutqanoq (talvasa)',
+  severe_headache_with_blurred_vision:
+    'Kuchli bosh og‘rig‘i va ko‘rish xiralashuvi',
+  fever_unable_to_rise: 'Isitma, o‘rnidan tura olmaydi',
+  severe_abdominal_pain: 'Qorinda kuchli og‘riq',
+  fast_or_difficult_breathing: 'Tez yoki qiyin nafas olish',
+  fever: 'Isitma',
+  abdominal_pain: 'Qorin og‘rig‘i',
+  feeling_unwell: 'O‘zini yomon his qilish',
+  swelling_face_hands_legs: 'Yuz, qo‘l yoki oyoqlarda shish',
+}
+
+/**
+ * Sentences opening an escalation raised from the patient channel. The doctor
+ * queue also has escalations.source = 'telegram', but the reason is the line a
+ * person actually reads, so it says where it came from in words too — and that
+ * the reading was taken at home, by her, not on a clinic cuff.
+ */
+export const TELEGRAM_ESCALATION = {
+  signs: 'Bemor Telegram orqali xavf belgisi haqida xabar berdi:',
+  homeBp: 'Bemor Telegram orqali uyda o‘lchangan qon bosimini yubordi:',
+} as const
+
+/** Shown on the midwife's screen so she can read the code out to the patient. */
+export const LINK_CODE_UI = {
+  title: 'Telegram uchun kod',
+  body: 'Bu kodni bemorga bering. U Telegramda ONA botiga yuboradi:',
+  bot: 'Bot',
+  unavailable:
+    'Kod ko‘rsatilmadi: homiladorlik ID to‘g‘ri formatda emas.',
+} as const
+
+/** The doctor's escalation queue. */
+export const QUEUE_UI = {
+  tabEntry: 'Yangi qayd',
+  tabQueue: 'Shifokor navbati',
+  title: 'Ochiq yo‘llanmalar',
+  refresh: 'Yangilash',
+  loading: 'Yuklanmoqda...',
+  empty: 'Ochiq yo‘llanma yo‘q.',
+  loadFailed: 'Navbatni yuklab bo‘lmadi.',
+  patientWords: 'Bemorning o‘z so‘zlari',
+  code: 'Kod',
+  truncated: 'Faqat eng so‘nggi 50 tasi ko‘rsatildi.',
+} as const
+
+export const ESCALATION_SOURCE_LABELS = {
+  telegram: 'Telegram',
+  clinic: 'Klinika',
+} as const
+
+export const ESCALATION_STATUS_LABELS: Record<string, string> = {
+  ochiq: 'Ochiq',
+  qabul: 'Qabul qilingan',
+  yopiq: 'Yopilgan',
+  bekor: 'Bekor qilingan',
+}

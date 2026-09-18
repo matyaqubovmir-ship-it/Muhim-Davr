@@ -7,17 +7,20 @@ import {
   ZONE_NAMES,
 } from '../lib/labels'
 import type { RiskResult } from '../lib/risk'
+import { LinkCode } from './LinkCode'
 import { ProtocolReminders } from './ProtocolReminders'
 import { VisitSchedule } from './VisitSchedule'
 
 export function ResultScreen({
   result,
   assessmentId,
+  pregnancyId,
   lmpDate,
   onNewEntry,
 }: {
   result: RiskResult
   assessmentId: string
+  pregnancyId: string
   lmpDate: Date | null
   onNewEntry: () => void
 }) {
@@ -89,6 +92,8 @@ export function ResultScreen({
       <VisitSchedule lmpDate={lmpDate} zone={result.zone} />
 
       <ProtocolReminders />
+
+      <LinkCode pregnancyId={pregnancyId} />
 
       {assessmentId ? (
         <p className="mt-5 text-xs break-all text-slate-400">
