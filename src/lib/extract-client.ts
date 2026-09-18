@@ -60,8 +60,38 @@ export async function extractFields(
   getToken: () => Promise<string | null> = sessionToken,
   fetchFn: typeof fetch = fetch,
 ): Promise<ExtractionOutcome> {
+  return postExtraction({ text }, EXTRACTION_TIMEOUT_MS, getToken, fetchFn)
+}
+
+/**
+ * A photo or PDF of a lab sheet or antenatal card, read by the same endpoint
+ * under the same rules: values printed on it, never inferred. Longer ceiling
+ * than a typed note — reading a page takes the model longer — and the same
+ * fallback: on any failure the form is untouched and she types.
+ */
+export const DOCUMENT_TIMEOUT_MS = 30_000
+
+export async function extractFromDocument(
+  document: { mediaType: string; data: string },
+  getToken: () => Promise<string | null> = sessionToken,
+  fetchFn: typeof fetch = fetch,
+): Promise<ExtractionOutcome> {
+  return postExtraction(
+    { document: { media_type: document.mediaType, data: document.data } },
+    DOCUMENT_TIMEOUT_MS,
+    getToken,
+    fetchFn,
+  )
+}
+
+async function postExtraction(
+  body: Record<string, unknown>,
+  timeoutMs: number,
+  getToken: () => Promise<string | null>,
+  fetchFn: typeof fetch,
+): Promise<ExtractionOutcome> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), EXTRACTION_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const token = await getToken()
@@ -69,7 +99,7 @@ export async function extractFields(
     const response = await fetchFn('/api/extract', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     })
 

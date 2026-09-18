@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SaveDocumentOutcome } from './documents'
 import { clinicEscalationRow, escalates } from './escalation'
 import type { RiskResult, RiskZone } from './risk'
 import { formatISODate, generateSchedule, parseISODate, upcomingVisitRows } from './schedule'
@@ -23,6 +24,8 @@ export interface SavedVisit {
   lmpDate: Date | null
   escalation: EscalationOutcome
   schedule: ScheduleOutcome
+  /** The lab sheet kept with the visit, when one was uploaded. Null when none was. */
+  document: SaveDocumentOutcome | null
 }
 
 export type EscalationOutcome =

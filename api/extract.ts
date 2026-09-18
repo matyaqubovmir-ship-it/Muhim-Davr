@@ -315,13 +315,64 @@ function readMode(input: unknown): ExtractMode | null {
  */
 export const MAX_TEXT_LENGTH = 4000
 
+/**
+ * A lab sheet or antenatal card, as a photo or a PDF. The browser downscales
+ * photos before sending (src/lib/document-file.ts), so a real one is far under
+ * this; the cap keeps a request under Vercel's 4.5 MB body limit.
+ */
+export const DOCUMENT_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const
+export type DocumentMediaType = (typeof DOCUMENT_MEDIA_TYPES)[number]
+export const MAX_DOCUMENT_BASE64_LENGTH = 4_000_000
+
+export interface IncomingDocument {
+  media_type: DocumentMediaType
+  data: string
+}
+
+/** The document on a request: absent (null), usable, or refused with a reason. */
+export function readDocument(input: unknown): IncomingDocument | null | { error: string } {
+  if (typeof input !== 'object' || input === null || !('document' in input)) return null
+  const doc = (input as { document: unknown }).document
+  if (doc === undefined || doc === null) return null
+  if (typeof doc !== 'object') return { error: 'bad_document' }
+  const { media_type: mediaType, data } = doc as { media_type?: unknown; data?: unknown }
+  if (typeof mediaType !== 'string' || !(DOCUMENT_MEDIA_TYPES as readonly string[]).includes(mediaType)) {
+    return { error: 'unsupported_document_type' }
+  }
+  if (typeof data !== 'string' || data.length === 0) return { error: 'bad_document' }
+  if (data.length > MAX_DOCUMENT_BASE64_LENGTH) return { error: 'document_too_large' }
+  // Base64 only, no data: prefix and no line breaks — the API rejects both.
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return { error: 'bad_document' }
+  return { media_type: mediaType as DocumentMediaType, data }
+}
+
+/**
+ * Added to the midwife prompt when the input is a document. Same job, same
+ * three states; the extra rules are the ways a printed sheet can mislead.
+ */
+const DOCUMENT_RULES = `
+
+THE INPUT IS A DOCUMENT — a photo or PDF of a laboratory result sheet, an antenatal card, or a referral. The same rules apply: extract only values that are written on it for this patient.
+- A printed reference range or normal value ("Norma: 120-140", "ref. 110-150") is NOT the patient's result. Never return it.
+- Read the result column only. If a value is handwritten and you cannot read every digit with certainty, return null — the midwife will type it.
+- If the same field appears with more than one result (several dates or visits), return null for that field — the midwife will choose which one applies.
+- Units: haemoglobin in g/dL (e.g. 10.5 g/dL) is converted to g/L as above (105). Any other unit you are not sure of: null.
+- Russian or Cyrillic labels are common ("Гемоглобин", "Белок в моче", "АД", "срок беременности"). Read them the same way.
+- A test listed without a result, or marked "не проводился"/"o'tkazilmadi", is null / "not_mentioned" — not negative.
+- "Белок не обнаружен", "oqsil yo'q", "abs", "negative", "-" in a protein result is "false". "+", "++", "обнаружен", "bor" is "true".`
+
 export async function handleExtract(input: unknown): Promise<ExtractResponse> {
   const text =
     typeof input === 'object' && input !== null && 'text' in input
       ? String((input as { text: unknown }).text ?? '')
       : ''
 
-  if (text.trim() === '') {
+  const document = readDocument(input)
+  if (document !== null && 'error' in document) {
+    return { status: 400, body: { error: document.error } }
+  }
+
+  if (text.trim() === '' && document === null) {
     return { status: 400, body: { error: 'empty_text' } }
   }
   if (text.length > MAX_TEXT_LENGTH) {
@@ -331,6 +382,10 @@ export async function handleExtract(input: unknown): Promise<ExtractResponse> {
   const mode = readMode(input)
   if (mode === null) {
     return { status: 400, body: { error: 'unknown_mode' } }
+  }
+  // A patient's Telegram message is text. Documents are the midwife's.
+  if (document !== null && mode !== 'assessment') {
+    return { status: 400, body: { error: 'document_not_allowed_in_mode' } }
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -346,14 +401,32 @@ export async function handleExtract(input: unknown): Promise<ExtractResponse> {
 
   const client = new Anthropic({ apiKey })
   const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL
-  console.log(`[extract] mode=${mode} model=${model} text_length=${text.length}`)
+  console.log(
+    `[extract] mode=${mode} model=${model} text_length=${text.length}` +
+      (document ? ` document=${document.media_type} base64_length=${document.data.length}` : ''),
+  )
+
+  // The document first, then the words about it — the order the API documents
+  // for the best reading of a file.
+  const content: Anthropic.ContentBlockParam[] = []
+  if (document !== null) {
+    content.push(
+      document.media_type === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: document.data } }
+        : { type: 'image', source: { type: 'base64', media_type: document.media_type, data: document.data } },
+    )
+  }
+  content.push({
+    type: 'text',
+    text: text.trim() !== '' ? text : 'Extract the values written on this document.',
+  })
 
   let response: Anthropic.Message
   try {
     response = await client.messages.create({
       model,
       max_tokens: 4000,
-      system: mode === 'danger_signs' ? DANGER_SIGN_PROMPT : SYSTEM_PROMPT,
+      system: mode === 'danger_signs' ? DANGER_SIGN_PROMPT : document !== null ? SYSTEM_PROMPT + DOCUMENT_RULES : SYSTEM_PROMPT,
       // Low effort: this is short-form extraction, not reasoning, and the client
       // gives up after 8 seconds.
       output_config: {
@@ -364,7 +437,7 @@ export async function handleExtract(input: unknown): Promise<ExtractResponse> {
           schema: mode === 'danger_signs' ? buildDangerSignSchema() : buildSchema(),
         },
       },
-      messages: [{ role: 'user', content: text }],
+      messages: [{ role: 'user', content }],
     })
   } catch (caught) {
     // Without this branch every upstream failure reaches the midwife as the same

@@ -19,6 +19,7 @@
 import type { RiskFactor, RiskZone } from './risk.ts'
 import type { FormFieldName } from './form-fields.ts'
 import type { DangerSign } from './danger-signs.ts'
+import type { NumberProblem } from './field-rules.ts'
 
 export const UI = {
   appTitle: 'Muhim Davr',
@@ -43,6 +44,10 @@ export const UI = {
   saveFailed: 'Saqlashda xatolik yuz berdi. Qayd saqlanmadi.',
   authFailed: 'Tizimga kirib bo‘lmadi. Qayd saqlanmadi.',
   numberInvalid: 'Son emas. Masalan: 110 yoki 10,5',
+  numberNotWhole: 'Butun son kiriting.',
+  numberRange: (min: number, max: number) => `${min} dan ${max} gacha bo‘lishi kerak.`,
+  hbUnits: (gL: number) => `Gemoglobin g/L da yoziladi. g/dL bo‘lsa, 10 ga ko‘paytiring: ${gL} g/L.`,
+  bpHalf: 'Qon bosimining ikkala sonini kiriting (masalan 120 va 80).',
   numbersInvalid: 'Ba’zi maydonlarda son noto‘g‘ri yozilgan. Belgilangan maydonlarni tuzating — qayd saqlanmadi.',
 
   narrativeLabel: 'Bemor haqida o‘z so‘zlaringiz bilan yozing',
@@ -176,7 +181,8 @@ export const SCHEDULE_ZONE_NOTES: Record<RiskZone, string> = {
   yashil: 'Yashil zona: WHO jadvali o‘zgarishsiz, sakkiz marta ko‘rik.',
   sariq:
     'Sariq zona: 26-haftadan boshlab har ikki ko‘rik orasiga qo‘shimcha ko‘rik qo‘shildi.',
-  qizil: 'Qizil zona: keyingi ko‘rik bugunga ko‘chirildi. Qolgan jadval o‘zgarmadi.',
+  qizil:
+    'Qizil zona: keyingi ko‘rik bugunga ko‘chirildi va 1 hafta ichida nazorat ko‘rigi qo‘shildi. Qo‘shimcha ko‘riklar sariq zonadagidek.',
 }
 
 /**
@@ -294,6 +300,7 @@ export const REGISTRY_UI = {
   overdue: 'Ko‘rik muddati o‘tgan',
   neverSeen: 'Akusherka ko‘rigi qayd etilmagan',
   notSeenDays: 'kundan beri ko‘rilmagan',
+  termNoPlan: (week: number) => `Muddatga yetdi (${week}-hafta) — ko‘rik rejalashtirilmagan`,
   live: 'Jonli',
   connecting: 'Ulanmoqda...',
   liveDown: 'Jonli yangilanish uzildi',
@@ -385,6 +392,7 @@ export const PATIENT_PAGE_UI = {
   notFound: 'Bunday homiladorlik topilmadi.',
   loadFailed: 'Bemor ma’lumotini yuklab bo‘lmadi.',
   retry: 'Qayta urinish',
+  print: 'Chop etish',
   age: 'yosh',
   gravida: 'Gravida',
   para: 'Para',
@@ -473,6 +481,100 @@ export const STAFF_ALERT = {
   open: 'Ochish',
   openInApp: 'Ilovada “Yo‘llanmalar” bo‘limini oching.',
   noName: 'Bemor ismi Telegramda yuborilmaydi.',
+} as const
+
+/**
+ * Appointments: the stored schedule on the patient page, and the visits
+ * calendar (/visits) both roles use to see who is due.
+ */
+export const VISITS_UI = {
+  nav: 'Ko‘riklar',
+  title: 'Ko‘riklar kalendari',
+  subtitle: 'Rejalashtirilgan ko‘riklar, muddati o‘tganlar va Telegram eslatmalari — jonli.',
+  overdue: 'Muddati o‘tgan',
+  today: 'Bugun',
+  tomorrow: 'Ertaga',
+  thisWeek: 'Shu hafta',
+  later: 'Keyingi 2 hafta',
+  empty: 'Bu guruhda ko‘rik yo‘q.',
+  allEmpty: 'Yaqin ikki haftada rejalashtirilgan ko‘rik yo‘q.',
+  loadFailed: 'Ko‘riklarni yuklab bo‘lmadi.',
+  statTotal: 'Rejalashtirilgan (14 kun)',
+  statToday: 'Bugun',
+  statOverdue: 'Muddati o‘tgan',
+  statNoTelegram: 'Telegramsiz',
+  statNoTelegramNote: 'telefon orqali eslating',
+
+  done: 'Bajarildi',
+  planned: 'Rejalashtirilgan',
+  pastPlanned: 'Muddati o‘tgan — ko‘rik kiritilmagan',
+  followUp: 'Nazorat ko‘rigi',
+  fulfilledToday: 'Bugungi ko‘rik bilan bajarildi',
+  reminderTwoDays: '2 kun oldin',
+  reminderMorning: 'ertalab',
+  remindersSent: 'Eslatma yuborildi',
+  reminderWillSend: 'Telegram eslatmasi yuboriladi',
+  noTelegram: 'Telegram ulanmagan — telefon orqali eslating',
+  recordVisit: 'Ko‘rikni kiritish',
+  storedTitle: 'Saqlangan ko‘rik jadvali',
+  storedNote: 'Bemor shu sanalar bo‘yicha Telegram eslatmasini oladi; shifokor ularni “Ko‘riklar” kalendarida ko‘radi.',
+  notStored: 'Jadval hali saqlanmagan: u keyingi ko‘rik kiritilganda saqlanadi. Quyida hisoblangan jadval.',
+  daysOverdue: (n: number) => `${n} kun o‘tdi`,
+  inDays: (n: number) => (n === 1 ? 'ertaga' : `${n} kundan keyin`),
+  week: 'hafta',
+} as const
+
+/** The sentence under a number box that cannot be saved (field-rules.ts). */
+export function numberProblemText(problem: NumberProblem): string {
+  switch (problem.kind) {
+    case 'not_number':
+      return UI.numberInvalid
+    case 'not_whole':
+      return UI.numberNotWhole
+    case 'out_of_range':
+      return UI.numberRange(problem.min, problem.max)
+    case 'hb_units':
+      return UI.hbUnits(problem.gL)
+    case 'bp_half':
+      return UI.bpHalf
+  }
+}
+
+/** Lab sheets and cards: read by the AI on the form, kept on the patient page. */
+export const DOCUMENT_UI = {
+  aiTitle: 'AI yordamchi',
+  aiHint: 'Ko‘rik haqida yozing yoki tahlil varaqasini yuklang — AI maydonlarni to‘ldiradi, siz har birini tekshirasiz.',
+  analyseText: 'Matnni tahlil qilish',
+  upload: 'Varaqani yuklash',
+  uploadHint: 'Rasm (JPG, PNG) yoki PDF',
+  preparing: 'Fayl tayyorlanmoqda…',
+  reading: 'AI varaqani o‘qimoqda…',
+  readOk: (n: number) => `AI varaqadan ${n} ta qiymatni o‘qidi — har birini tekshiring.`,
+  readNone: 'Varaqadan aniq qiymat topilmadi. Qiymatlarni o‘zingiz kiriting.',
+  readFailed: 'Varaqani o‘qib bo‘lmadi. Qiymatlarni qo‘lda kiriting — shakl to‘liq ishlaydi.',
+  unsupported: 'Bu fayl turi qo‘llab-quvvatlanmaydi. JPG, PNG yoki PDF yuklang.',
+  tooLarge: 'Fayl juda katta: PDF 3 MB gacha, rasm 30 MB gacha.',
+  unreadable: 'Faylni ochib bo‘lmadi. Boshqa rasm yoki PDF tanlang.',
+  remove: 'Olib tashlash',
+  keptNote: 'Varaqa ko‘rik saqlanganda bemor yozuviga biriktiriladi.',
+  pdf: 'PDF hujjat',
+
+  savedDoc: 'Tahlil varaqasi bemor yozuviga biriktirildi.',
+  docNotConfigured: 'Varaqa nusxasi saqlanmadi: hujjatlar ombori hali sozlanmagan (007 migratsiyasi). Ko‘rik saqlandi.',
+  docFailed: 'Varaqa nusxasi saqlanmadi. Ko‘rik saqlandi.',
+
+  title: 'Hujjatlar',
+  subtitle: 'Tahlil varaqalari va kartalar — faqat xodimlar ko‘radi.',
+  empty: 'Hali hujjat yuklanmagan.',
+  add: 'Hujjat qo‘shish',
+  adding: 'Yuklanmoqda…',
+  open: 'Ochish',
+  aiRead: 'AI o‘qigan',
+  withVisit: 'ko‘rik bilan',
+  notConfigured:
+    'Hujjatlar ombori hali sozlanmagan. Supabase’da 007_documents_and_fixes.sql migratsiyasini ishga tushiring.',
+  loadFailed: 'Hujjatlarni yuklab bo‘lmadi.',
+  openFailed: 'Hujjatni ochib bo‘lmadi.',
 } as const
 
 /** The specialist dashboard (/dashboard). */

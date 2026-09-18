@@ -1,5 +1,4 @@
 import { useId } from 'react'
-import { UI } from '../lib/labels'
 import { AiBadge } from './AiBadge'
 
 /**
@@ -9,7 +8,7 @@ import { AiBadge } from './AiBadge'
  * A text box with a decimal keypad, not type="number": a number input hands
  * back an empty string for anything the browser cannot read — "10,5" in most
  * locales — and that would be saved as not measured. Here what she typed stays
- * what she typed, and a box that is not a number says so.
+ * what she typed, and a box that cannot be saved says why (field-rules.ts).
  */
 export function NumberField({
   label,
@@ -17,16 +16,18 @@ export function NumberField({
   value,
   onChange,
   fromAi = false,
-  invalid = false,
+  error = null,
 }: {
   label: string
   unit?: string
   value: string
   onChange: (next: string) => void
   fromAi?: boolean
-  invalid?: boolean
+  /** Why this value cannot be saved, or null. */
+  error?: string | null
 }) {
   const id = useId()
+  const invalid = error !== null
 
   return (
     <div className="py-2">
@@ -45,13 +46,17 @@ export function NumberField({
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? `${id}-error` : undefined}
         className={[
-          'min-h-11 w-full rounded-md border bg-surface px-3 text-base text-text-primary tabular-nums focus:outline-none',
-          invalid ? 'border-zone-qizil ring-1 ring-zone-qizil' : 'border-border-input focus:border-brand',
+          'min-h-11 w-full rounded-lg border bg-surface px-3 text-base text-text-primary tabular-nums shadow-[inset_0_1px_1px_rgba(15,23,42,0.04)] transition-colors focus:outline-none focus:ring-3',
+          invalid
+            ? 'border-zone-qizil ring-1 ring-zone-qizil focus:ring-zone-qizil/25'
+            : fromAi
+              ? 'border-violet-400 bg-violet-50/40 focus:border-brand focus:ring-brand/15'
+              : 'border-border-input focus:border-brand focus:ring-brand/15',
         ].join(' ')}
       />
       {invalid ? (
         <p id={`${id}-error`} className="mt-1 text-sm text-zone-qizil">
-          {UI.numberInvalid}
+          {error}
         </p>
       ) : null}
     </div>

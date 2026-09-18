@@ -17,6 +17,7 @@
   --color-text-primary: #0F172A;
   --color-text-muted: #64748B;
   --color-brand: #2563EB;
+  --color-brand-strong: #1D4ED8;
   --color-brand-soft: #EFF6FF;
 
   --color-zone-qizil: #BE3A2B;
@@ -25,6 +26,10 @@
   --color-zone-sariq-soft: #FCF1DF;
   --color-zone-yashil: #2C7A50;
   --color-zone-yashil-soft: #E7F3ED;
+
+  /* Hover fills for the danger and success buttons: the zone colour, darker. */
+  --color-zone-qizil-strong: #A32F22;
+  --color-zone-yashil-strong: #23643F;
 }
 
 /*

@@ -1,4 +1,5 @@
 import {
+  DOCUMENT_UI,
   FACTOR_SENTENCES,
   FOLLOW_UP_UI,
   MISSING_FIELD_NAMES,
@@ -9,7 +10,9 @@ import {
 } from '../lib/labels'
 import type { SavedVisit } from '../lib/visit-followup'
 import { ZONE_CLASS } from '../lib/zone-style'
+import { Button } from './Button'
 import { EscalationNotice } from './EscalationNotice'
+import { CheckIcon, FileIcon, PlusIcon } from './Icons'
 import { LinkCode } from './LinkCode'
 import { ProtocolReminders } from './ProtocolReminders'
 import { VisitSchedule } from './VisitSchedule'
@@ -117,6 +120,27 @@ export function ResultScreen({
         </p>
       ) : null}
 
+      {/* The lab sheet, if one was uploaded: kept with the record, or why not. */}
+      {saved.document !== null ? (
+        <p
+          className={[
+            'mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-sm leading-snug',
+            saved.document.kind === 'saved'
+              ? 'border-violet-200 bg-violet-50 text-violet-900'
+              : 'border-amber-300 bg-amber-50 text-amber-900',
+          ].join(' ')}
+        >
+          {saved.document.kind === 'saved' ? <CheckIcon size={16} className="mt-0.5" /> : <FileIcon size={16} className="mt-0.5" />}
+          <span>
+            {saved.document.kind === 'saved'
+              ? DOCUMENT_UI.savedDoc
+              : saved.document.kind === 'not_configured'
+                ? DOCUMENT_UI.docNotConfigured
+                : `${DOCUMENT_UI.docFailed} (${saved.document.message})`}
+          </span>
+        </p>
+      ) : null}
+
       <ProtocolReminders />
 
       <LinkCode pregnancyId={pregnancyId} />
@@ -127,15 +151,11 @@ export function ResultScreen({
         </p>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface/90 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
         <div className="mx-auto max-w-lg">
-          <button
-            type="button"
-            onClick={onNewEntry}
-            className="min-h-12 w-full rounded-lg bg-brand text-base font-semibold text-white"
-          >
+          <Button variant="primary" size="lg" fullWidth onClick={onNewEntry} icon={<PlusIcon size={18} />}>
             {UI.newEntry}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
