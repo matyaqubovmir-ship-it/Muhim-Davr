@@ -7,6 +7,8 @@ import type { RiskResult } from './lib/risk'
 interface Saved {
   result: RiskResult
   assessmentId: string
+  /** Anchor for the visit schedule. Null when gestational age was not recorded. */
+  lmpDate: Date | null
 }
 
 /** One route: the entry form, then the result for what was just saved. */
@@ -27,11 +29,14 @@ export default function App() {
           <ResultScreen
             result={saved.result}
             assessmentId={saved.assessmentId}
+            lmpDate={saved.lmpDate}
             onNewEntry={() => setSaved(null)}
           />
         ) : (
           <EntryForm
-            onSaved={(result, assessmentId) => setSaved({ result, assessmentId })}
+            onSaved={(result, assessmentId, lmpDate) =>
+              setSaved({ result, assessmentId, lmpDate })
+            }
           />
         )}
       </div>

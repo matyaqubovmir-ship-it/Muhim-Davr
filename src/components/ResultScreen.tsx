@@ -7,14 +7,18 @@ import {
   ZONE_NAMES,
 } from '../lib/labels'
 import type { RiskResult } from '../lib/risk'
+import { ProtocolReminders } from './ProtocolReminders'
+import { VisitSchedule } from './VisitSchedule'
 
 export function ResultScreen({
   result,
   assessmentId,
+  lmpDate,
   onNewEntry,
 }: {
   result: RiskResult
   assessmentId: string
+  lmpDate: Date | null
   onNewEntry: () => void
 }) {
   const color = ZONE_COLORS[result.zone]
@@ -81,6 +85,10 @@ export function ResultScreen({
           </ul>
         )}
       </section>
+
+      <VisitSchedule lmpDate={lmpDate} zone={result.zone} />
+
+      <ProtocolReminders />
 
       {assessmentId ? (
         <p className="mt-5 text-xs break-all text-slate-400">

@@ -16,6 +16,7 @@ import {
 } from '../lib/assessment-row'
 import { extractFields, type ExtractedFields } from '../lib/extract-client'
 import { scoreAssessment, type RiskResult } from '../lib/risk'
+import { estimateLmpFromGestationalAge } from '../lib/schedule'
 import { getAuthedSupabase } from '../lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NumberField } from './NumberField'
@@ -31,7 +32,7 @@ function isUnscored(name: FormFieldName): name is UnscoredField {
 export function EntryForm({
   onSaved,
 }: {
-  onSaved: (result: RiskResult, assessmentId: string) => void
+  onSaved: (result: RiskResult, assessmentId: string, lmpDate: Date | null) => void
 }) {
   const [pregnancyId, setPregnancyId] = useState('')
   const [numbers, setNumbers] = useState<NumericFormValues>({})
@@ -159,7 +160,15 @@ export function EntryForm({
         setError(`${UI.saveFailed} (${insertError.message})`)
         return
       }
-      onSaved(result, String(data?.id ?? ''))
+      // The schedule is anchored on the LMP. pregnancies.lmp_date is the real
+      // anchor; until the patient screen exists we derive it from the
+      // gestational age on this visit, which is rounded to whole weeks.
+      const gaWeeks = Number(numbers.gestational_age_weeks ?? '')
+      const lmpDate = Number.isFinite(gaWeeks) && numbers.gestational_age_weeks
+        ? estimateLmpFromGestationalAge(new Date(), gaWeeks)
+        : null
+
+      onSaved(result, String(data?.id ?? ''), lmpDate)
     } catch (caught) {
       setError(`${UI.saveFailed} (${(caught as Error).message})`)
     } finally {

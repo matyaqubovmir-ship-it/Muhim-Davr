@@ -45,6 +45,19 @@ export const UI = {
   aiBadge: 'AI',
   aiFilledNote:
     'AI belgisi qo‘yilgan maydonlarni tekshiring va kerak bo‘lsa to‘g‘rilang.',
+
+  scheduleTitle: 'Ko‘riklar jadvali',
+  nextVisit: 'Keyingi ko‘rik',
+  today: 'Bugun',
+  week: 'hafta',
+  contact: 'ko‘rik',
+  scheduleNeedsGa:
+    'Jadvalni tuzish uchun homiladorlik muddati (hafta) kiritilishi kerak.',
+  scheduleBasis: 'WHO 2016 — sakkiz marta ko‘rik modeli',
+
+  protocolTitle: 'WHO protokoli bo‘yicha eslatma — shifokor tasdiqlashi kerak',
+  protocolStaticNote:
+    'Bu ro‘yxat o‘zgarmas. Uni tizim ham, sun’iy intellekt ham yaratmaydi va bemorga moslamaydi.',
   savedAs: 'Qayd saqlandi',
 } as const
 
@@ -143,6 +156,40 @@ export const FACTOR_SENTENCES: Record<RiskFactor, string> = {
   family_history: 'Oilada preeklampsiya bo‘lgan.',
   short_interval: 'Oldingi tug‘ruqdan keyin 24 oydan kam vaqt o‘tgan.',
 }
+
+export const VISIT_STATUS_LABELS: Record<string, string> = {
+  rejalashtirilgan: 'Rejalashtirilgan',
+  bajarilgan: 'Bajarilgan',
+  "o'tkazib yuborilgan": 'O‘tkazib yuborilgan',
+}
+
+/** How each zone changes the schedule, shown above the list. */
+export const SCHEDULE_ZONE_NOTES: Record<RiskZone, string> = {
+  yashil: 'Yashil zona: WHO jadvali o‘zgarishsiz, sakkiz marta ko‘rik.',
+  sariq:
+    'Sariq zona: 26-haftadan boshlab har ikki ko‘rik orasiga qo‘shimcha ko‘rik qo‘shildi.',
+  qizil: 'Qizil zona: keyingi ko‘rik bugunga ko‘chirildi. Qolgan jadval o‘zgarmadi.',
+}
+
+/**
+ * Static protocol reminders from WHO antenatal care guidance. DISPLAYED, NEVER
+ * GENERATED.
+ *
+ * This is a fixed list of four strings. Nothing computes it, nothing tailors it
+ * to the patient, and no model has any path to it — a medication chosen by a
+ * language model is not something this system will show a midwife. It is
+ * rendered as a reminder for a clinician to confirm, never as an instruction
+ * the system has issued.
+ *
+ * Source: WHO recommendations on antenatal care for a positive pregnancy
+ * experience (2016).
+ */
+export const WHO_PROTOCOL_REMINDERS: readonly string[] = [
+  'Temir va folat kislotasi, yoki ko‘p mikroelementli qo‘shimcha — har bir ko‘rikda.',
+  'Kalsiy qo‘shimchasi — har bir ko‘rikda.',
+  'Vitamin D — har bir ko‘rikda.',
+  'Qon bosimi yuqori bo‘lgan ayollarga preeklampsiyaning oldini olish uchun kuniga 150 mg aspirin. 36-haftada to‘xtatiladi.',
+] as const
 
 /** Short names for the missing-data warning, read as a list inside a sentence. */
 export const MISSING_FIELD_NAMES = {
