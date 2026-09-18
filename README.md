@@ -1,8 +1,134 @@
 # Muhim Davr
 
-Perinatal risk registry for Xorazm. (`ona` is the internal package name.)
+**Homilador ayollar xavfini tuman darajasida real vaqtda kuzatish.**
+A perinatal risk registry for Xorazm: when a pregnant woman's results worsen,
+the district maternal-and-child-health specialist (OvaBMU) sees it on screen,
+live, instead of finding out days later. (`ona` is the internal package name.)
 
-## Access and roles are hackathon stand-ins, not security
+Built for the Xorazm AI Xakaton, problem #9: *"Homilador ayollar va chaqaloqlar
+salomatligi tuman darajasida real vaqtda monitoring qilinmaydi: tahlillar
+yomonlashsa, OvaBMU mutaxassislari kech xabar topadi."*
+
+## Three interfaces, one clinical spine
+
+| Who | Where | What they do |
+|---|---|---|
+| **Midwife (akusherka)** | `/entry`, `/patients/new` — phone-first | Registers a woman, types or dictates a visit note, lets the AI fill the form, checks every value, saves. Sees the zone, the factors behind it, the WHO visit schedule and static protocol reminders. |
+| **OvaBMU specialist** | `/dashboard`, `/registry`, `/escalations`, `/patients/:id` | Dashboard of every district; drill-down district → zone → woman; a live alert queue with acknowledge and close; each woman's history, chart, schedule and her own Telegram messages. A toast, badge and sound when an alert opens, and optionally a Telegram message to their own phone. |
+| **The pregnant woman** | Telegram only — no app, no password | Links with a six-character code the midwife reads out. Reports how she feels; danger signs reach the specialist's queue. Gets visit reminders two days before and on the morning of each contact. |
+
+## AI design — what the model does and what it never does
+
+The system has two layers, and the line between them is the safety design.
+
+**Layer 1 — the decision: a transparent rule engine, not a model.**
+`src/lib/risk.ts` is a weighted, versioned point table. Four findings force red on
+their own (blood pressure 160 systolic or 110 diastolic and above, suspected
+pre-eclampsia, haemoglobin < 70 g/L, bleeding); the rest add points (red ≥ 7,
+yellow ≥ 3). Every score is stored with
+its inputs and the rules version that produced it, so any past result can be
+reproduced from its own row years later. Missing data is shown as *unknown risk*,
+never as a reassuring green. The visit schedule (`schedule.ts`, WHO 2016
+eight-contact model) is arithmetic on a date; danger-sign urgency
+(`danger-signs.ts`) is a fixed WHO list. None of these involve a model.
+
+**Layer 2 — the AI: Claude Haiku 4.5, extraction only.**
+The model reads what a person already said — a midwife's Uzbek note, or a
+patient's Telegram message — and reports it back as structured fields
+(`api/extract.ts`). It never scores, never triages, never picks a date or a
+medicine, and never writes anything a patient reads. Every yes/no field has three
+answers, `true` / `false` / `not_mentioned`, so "nobody measured it" can never be
+stored as "measured and normal". From the system prompt:
+
+> "Not mentioned" is "not_mentioned". It is NEVER "false". A finding nobody wrote
+> about is not a finding that was ruled out. [...] a skipped test recorded as a
+> negative test can hide a woman who needs urgent care.
+
+The midwife sees an **AI** badge on every field the model filled and confirms or
+corrects each one before saving; the audit trail keeps the model's raw answer and
+whether she changed it. If the AI is slow (8-second limit), down, or the key is
+missing, the form simply stays a normal typed form.
+
+**Who is liable for a wrong recommendation?** The system makes no recommendation.
+It reports a WHO-sourced factor list and a zone from published rules; a specialist
+decides. The Telegram bot never diagnoses, never reassures, and never names a
+medicine — every sentence it can send is a fixed string in `bot/messages.ts`.
+
+## How a worsening result reaches a specialist
+
+1. The midwife saves a visit. `scoreAssessment` returns **qizil**.
+2. The app writes the assessment (append-only — the database rejects any edit or
+   delete) and an escalation linked to it by a composite key, so it can never be
+   filed under the wrong woman.
+3. Supabase Realtime pushes both inserts to every open specialist screen: the
+   district card and the woman's row turn red, the queue gains a card, the bell
+   counts up, a short sound plays. No refresh.
+4. The specialist acknowledges (`ochiq → qabul`), then closes with a note
+   (`qabul → yopiq`). Time-to-acknowledge is shown on the queue and dashboard.
+5. Optionally, the bot sends the specialist's Telegram a short alert: district,
+   source, reason and a link — never the patient's name.
+
+The same path runs when the woman herself reports a danger sign on Telegram;
+the queue marks those as coming from her own phone.
+
+## Run it
+
+```bash
+npm install
+cp .env.example .env.local        # fill in the Supabase URL and anon key, Anthropic key, bot token
+```
+
+**Database.** Run each file in `supabase/migrations/` in order (001 → 006) in the
+Supabase SQL editor. Enable anonymous sign-ins (Authentication → Providers).
+
+```bash
+npm run dev          # the web app, with /api/extract served locally
+npm run bot          # the Telegram bot — a separate, long-running process
+npm run test:run     # unit tests (vitest)
+npm run lint         # oxlint
+npx tsc -b           # typecheck
+```
+
+`/api/extract` deploys as a Vercel serverless function (`vercel.json`); set the
+same environment variables in the Vercel project.
+
+## Demo
+
+```bash
+npm run seed                 # dry run: prints the plan, writes nothing
+npm run seed -- --apply      # writes 14 synthetic women across 5 districts
+npm run demo:worsen          # the live moment, if not typed on stage
+npm run seed -- --retire     # takes the demo women off the registry afterwards
+```
+
+The seed covers every zone, one woman not yet assessed, one overdue, an
+acknowledged and a closed escalation, an open clinic alert and an open alert
+from a patient's own Telegram. Every value goes through the real scorer and
+the real write paths — no zone is typed in by hand. Every row is marked
+synthetic in the database, and no phone number or Telegram chat is attached.
+
+**On stage:** open `/dashboard` as *OvaBMU mutaxassisi* on one screen and
+`/entry` as *Akusherka* on another. Pick **Oydin Karimova** (Urganch, currently
+sariq), enter BP 164/112 with protein in the urine, save. Her row turns red on the
+registry, the alert appears in the queue with a sound, and it can be
+acknowledged and opened to her timeline.
+
+**Telegram alert to a specialist** (optional): set `STAFF_ALERT_CHAT_ID` (one
+person's id from @userinfobot, or a group's) and run `npm run bot`. It only
+logs what it would send until `STAFF_ALERTS=send` is set. `APP_URL` adds a link.
+
+## What is real and what is stubbed
+
+**Real, running on real data:** the rule engine and its tests; AI extraction on
+real Uzbek input with the fallback to typing; the append-only record and its
+database constraints; the district registry, dashboard and queue reading
+Supabase and updating over Realtime; acknowledge/close writes; the patient page;
+patient registration and the name search; the Telegram bot (linking,
+self-report triage, visit reminders, district announcements, specialist alerts).
+
+**Stand-ins for the hackathon:**
+
+### Access and roles are hackathon stand-ins, not security
 
 - **Sign-in is anonymous.** Every device gets an anonymous Supabase session
   (`src/lib/supabase.ts`), and the RLS policies treat every session as clinical
@@ -15,37 +141,30 @@ Perinatal risk registry for Xorazm. (`ona` is the internal package name.)
 - Before real patient data is entered: real staff accounts, and RLS policies
   scoped by role and district.
 
----
+**Also not yet built:** infant (post-birth) follow-up; import from existing
+clinic records; the link code is derived from the pregnancy id and cannot be
+rotated (fine for a pilot, replaced by an invitation table at scale).
 
-# React + TypeScript + Vite
+**Demo data is synthetic.** No real patient's data is in this repository or in
+the demo database.
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+## Secrets
 
-Currently, two official plugins are available:
+`ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN` and `SUPABASE_SERVICE_ROLE_KEY` live
+only in `.env.local` (git-ignored) and never carry a `VITE_` prefix — Vite
+would put a `VITE_` variable in the browser bundle. `bot/config.ts` refuses to
+start if it finds a `VITE_` copy of the token, and `bot/boundary.test.ts` fails
+the build if anything under `src/` imports the bot. `/api/extract` only answers
+requests carrying a live app session, so the Anthropic key cannot be spent by
+anyone who finds the URL.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Layout
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
 ```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+src/lib/       rules, schedule, danger signs, row builders — pure and tested
+src/components/ the midwife form and the specialist screens
+api/extract.ts  the only place a model is called
+bot/            the Telegram channel (long polling; no webhook, no public URL needed)
+scripts/        demo seed
+supabase/migrations/  schema, constraints, views and RLS, with the reasoning in comments
+```
