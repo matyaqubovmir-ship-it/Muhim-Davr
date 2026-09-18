@@ -8,6 +8,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { EscalationRow } from '../src/lib/escalation.ts'
 
 export interface LinkedChannel {
   pregnancyId: string
@@ -41,13 +42,7 @@ export interface PatientReportRow {
   escalation_id: string | null
 }
 
-export interface EscalationRow {
-  assessment_id: string
-  pregnancy_id: string
-  reason: string
-  fired_factors: string[]
-  source: 'telegram'
-}
+export type { EscalationRow }
 
 export interface BotStore {
   findChannel(chatId: number): Promise<LinkedChannel | null>

@@ -175,6 +175,63 @@ export function intervalFromPrevious(
   return schedule[index].targetWeek - schedule[index - 1].targetWeek
 }
 
+/** Parses a Postgres `date` (YYYY-MM-DD) as a local midnight, never through UTC. */
+export function parseISODate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (!match) return null
+  const [year, month, day] = match.slice(1).map(Number)
+  const date = new Date(year, month - 1, day)
+  // new Date(2026, 1, 31) quietly becomes 3 March; a date that moved is not the date given.
+  return date.getMonth() === month - 1 && date.getDate() === day ? date : null
+}
+
+/**
+ * What the schedule is counted from.
+ *
+ * The recorded LMP when the pregnancy has one: it is the real anchor, and it
+ * does not move between visits. Otherwise an estimate from this visit's
+ * gestational age, which is rounded to whole weeks and so can be out by several
+ * days. Otherwise nothing, and there is no schedule to show or to save.
+ */
+export function scheduleAnchor(
+  recordedLmp: Date | null,
+  gestationalAgeWeeks: number | null,
+  visitDate: Date,
+): Date | null {
+  if (recordedLmp !== null) return startOfDay(recordedLmp)
+  if (gestationalAgeWeeks !== null && Number.isFinite(gestationalAgeWeeks)) {
+    return estimateLmpFromGestationalAge(visitDate, gestationalAgeWeeks)
+  }
+  return null
+}
+
+/** One upcoming contact, as replace_planned_visits in 004_persist_schedule.sql takes it. */
+export interface PlannedVisitRow {
+  target_week: number
+  target_date: string
+}
+
+/**
+ * The contacts to store as planned: those dated strictly after today.
+ *
+ * Today's contact is not among them — she is being seen today, and the saved
+ * assessment is that visit. Past contacts are not among them either: the
+ * calendar says their date passed, not whether she came, so they are never
+ * written down as missed.
+ */
+export function upcomingVisitRows(
+  schedule: readonly ScheduledVisit[],
+  today: Date,
+): PlannedVisitRow[] {
+  const now = startOfDay(today).getTime()
+  return schedule
+    .filter((visit) => startOfDay(visit.targetDate).getTime() > now)
+    .map((visit) => ({
+      target_week: visit.targetWeek,
+      target_date: formatISODate(visit.targetDate),
+    }))
+}
+
 /**
  * Estimates the LMP from a visit date and a gestational age in weeks.
  *

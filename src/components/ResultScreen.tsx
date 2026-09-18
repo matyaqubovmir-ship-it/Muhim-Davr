@@ -1,29 +1,26 @@
 import {
   FACTOR_SENTENCES,
+  FOLLOW_UP_UI,
   MISSING_FIELD_NAMES,
   UI,
   ZONE_ADVICE,
   ZONE_COLORS,
   ZONE_NAMES,
 } from '../lib/labels'
-import type { RiskResult } from '../lib/risk'
+import type { SavedVisit } from '../lib/visit-followup'
+import { EscalationNotice } from './EscalationNotice'
 import { LinkCode } from './LinkCode'
 import { ProtocolReminders } from './ProtocolReminders'
 import { VisitSchedule } from './VisitSchedule'
 
 export function ResultScreen({
-  result,
-  assessmentId,
-  pregnancyId,
-  lmpDate,
+  saved,
   onNewEntry,
 }: {
-  result: RiskResult
-  assessmentId: string
-  pregnancyId: string
-  lmpDate: Date | null
+  saved: SavedVisit
   onNewEntry: () => void
 }) {
+  const { result, assessmentId, pregnancyId, lmpDate, schedule } = saved
   const color = ZONE_COLORS[result.zone]
   const missing = result.missingCriticalFields
 
@@ -43,6 +40,13 @@ export function ResultScreen({
           {UI.score}: <span className="font-semibold">{result.score}</span>
         </div>
       </div>
+
+      <EscalationNotice
+        initial={saved.escalation}
+        assessmentId={assessmentId}
+        pregnancyId={pregnancyId}
+        result={result}
+      />
 
       {/*
         Not an error panel. Incomplete data is part of the result, so it sits in
@@ -90,6 +94,17 @@ export function ResultScreen({
       </section>
 
       <VisitSchedule lmpDate={lmpDate} zone={result.zone} />
+
+      {/* Whether the dates above were stored, which is what the reminders read. */}
+      {schedule.kind === 'saved' ? (
+        <p className="mt-2 text-xs leading-snug text-slate-500">{FOLLOW_UP_UI.scheduleSaved}</p>
+      ) : null}
+      {schedule.kind === 'failed' ? (
+        <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm leading-snug text-amber-900">
+          {FOLLOW_UP_UI.scheduleFailed}{' '}
+          <span className="text-xs break-words">({schedule.message})</span>
+        </p>
+      ) : null}
 
       <ProtocolReminders />
 

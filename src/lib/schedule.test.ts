@@ -6,6 +6,9 @@ import {
   formatISODate,
   generateSchedule,
   intervalFromPrevious,
+  parseISODate,
+  scheduleAnchor,
+  upcomingVisitRows,
 } from './schedule'
 
 /** Monday 5 January 2026. Every contact therefore falls on a Monday. */
@@ -203,5 +206,75 @@ describe('findNextVisit', () => {
       today: new Date(2026, 11, 1),
     })
     expect(findNextVisit(schedule, new Date(2026, 11, 1))).toBeNull()
+  })
+})
+
+describe('parseISODate', () => {
+  it('reads a Postgres date as a local midnight', () => {
+    const date = parseISODate('2026-03-15')
+    expect(date).toEqual(new Date(2026, 2, 15))
+    expect(formatISODate(date!)).toBe('2026-03-15')
+  })
+
+  it('refuses anything that is not a real calendar date', () => {
+    expect(parseISODate('2026-02-31')).toBeNull()
+    expect(parseISODate('15.03.2026')).toBeNull()
+    expect(parseISODate('')).toBeNull()
+  })
+})
+
+describe('scheduleAnchor', () => {
+  const visitDate = new Date(2026, 8, 18)
+
+  it('prefers the recorded LMP over any estimate', () => {
+    expect(scheduleAnchor(new Date(2026, 2, 15), 30, visitDate)).toEqual(new Date(2026, 2, 15))
+  })
+
+  it('estimates from gestational age when no LMP is recorded', () => {
+    expect(scheduleAnchor(null, 2, visitDate)).toEqual(new Date(2026, 8, 4))
+  })
+
+  it('has no anchor when neither is known', () => {
+    expect(scheduleAnchor(null, null, visitDate)).toBeNull()
+    expect(scheduleAnchor(null, Number.NaN, visitDate)).toBeNull()
+  })
+})
+
+describe('upcomingVisitRows — what gets stored for the reminders', () => {
+  it('stores only contacts strictly after today, as week and ISO date', () => {
+    const today = new Date(2026, 7, 31) // the 34-week contact's own day
+    const rows = upcomingVisitRows(
+      generateSchedule({ lmpDate: LMP, currentZone: 'yashil', today }),
+      today,
+    )
+    expect(rows).toEqual([
+      { target_week: 36, target_date: '2026-09-14' },
+      { target_week: 38, target_date: '2026-09-28' },
+      { target_week: 40, target_date: '2026-10-12' },
+    ])
+  })
+
+  it('does not store the qizil contact pulled to today — the visit being saved is that contact', () => {
+    const today = new Date(2026, 7, 20)
+    const schedule = generateSchedule({ lmpDate: LMP, currentZone: 'qizil', today })
+    expect(schedule.some((visit) => formatISODate(visit.targetDate) === '2026-08-20')).toBe(true)
+    expect(upcomingVisitRows(schedule, today).map((row) => row.target_week)).toEqual([36, 38, 40])
+  })
+
+  it('never stores a past contact, so nothing is ever recorded as missed', () => {
+    const today = new Date(2026, 6, 1)
+    const rows = upcomingVisitRows(
+      generateSchedule({ lmpDate: LMP, currentZone: 'sariq', today }),
+      today,
+    )
+    expect(rows.every((row) => row.target_date > '2026-07-01')).toBe(true)
+    expect(rows[0]).toEqual({ target_week: 26, target_date: '2026-07-06' })
+  })
+
+  it('stores nothing once the schedule is behind her', () => {
+    const today = new Date(2026, 11, 1)
+    expect(
+      upcomingVisitRows(generateSchedule({ lmpDate: LMP, currentZone: 'yashil', today }), today),
+    ).toEqual([])
   })
 })

@@ -18,7 +18,7 @@
  * learning to ignore the channel.
  */
 
-import { addDays, formatISODate } from '../src/lib/schedule.ts'
+import { addDays, formatISODate, parseISODate } from '../src/lib/schedule.ts'
 import { reminderMorning, reminderTwoDays } from './messages.ts'
 import type { BotStore, ReminderKind } from './store.ts'
 import type { TelegramClient } from './telegram.ts'
@@ -59,12 +59,6 @@ export function clinicClock(now: Date): { today: Date; hour: number } {
   }
 }
 
-/** Parses a Postgres `date` as a local midnight, never through UTC. */
-function parseISODate(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Date(year, month - 1, day)
-}
-
 /**
  * One sweep. Returns how many reminders were actually sent.
  *
@@ -95,7 +89,9 @@ export async function sendDueReminders(
   let sent = 0
   for (const visit of due) {
     const kind: ReminderKind = visit.targetDate === todayISO ? 'ertalab' : 'ikki_kun'
+    // The query matched this exact string, so it parses; a guard costs nothing.
     const date = parseISODate(visit.targetDate)
+    if (date === null) continue
     const text =
       kind === 'ertalab'
         ? reminderMorning(date, visit.district)

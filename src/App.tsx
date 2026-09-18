@@ -3,15 +3,7 @@ import { EntryForm } from './components/EntryForm'
 import { EscalationQueue } from './components/EscalationQueue'
 import { ResultScreen } from './components/ResultScreen'
 import { QUEUE_UI, UI } from './lib/labels'
-import type { RiskResult } from './lib/risk'
-
-interface Saved {
-  result: RiskResult
-  assessmentId: string
-  pregnancyId: string
-  /** Anchor for the visit schedule. Null when gestational age was not recorded. */
-  lmpDate: Date | null
-}
+import type { SavedVisit } from './lib/visit-followup'
 
 type Tab = 'entry' | 'queue'
 
@@ -21,7 +13,7 @@ type Tab = 'entry' | 'queue'
  */
 export default function App() {
   const [tab, setTab] = useState<Tab>('entry')
-  const [saved, setSaved] = useState<Saved | null>(null)
+  const [saved, setSaved] = useState<SavedVisit | null>(null)
 
   const tabClass = (active: boolean) =>
     [
@@ -51,19 +43,9 @@ export default function App() {
         {/* Hidden rather than unmounted, so a half-typed visit survives a look at the queue. */}
         <div className={tab === 'entry' ? '' : 'hidden'}>
           {saved ? (
-            <ResultScreen
-              result={saved.result}
-              assessmentId={saved.assessmentId}
-              pregnancyId={saved.pregnancyId}
-              lmpDate={saved.lmpDate}
-              onNewEntry={() => setSaved(null)}
-            />
+            <ResultScreen saved={saved} onNewEntry={() => setSaved(null)} />
           ) : (
-            <EntryForm
-              onSaved={(result, assessmentId, pregnancyId, lmpDate) =>
-                setSaved({ result, assessmentId, pregnancyId, lmpDate })
-              }
-            />
+            <EntryForm onSaved={setSaved} />
           )}
         </div>
 

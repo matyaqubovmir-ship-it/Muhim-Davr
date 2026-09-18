@@ -61,7 +61,7 @@ export const UI = {
   week: 'hafta',
   contact: 'ko‘rik',
   scheduleNeedsGa:
-    'Jadvalni tuzish uchun homiladorlik muddati (hafta) kiritilishi kerak.',
+    'Jadvalni tuzish uchun homiladorlik muddati (hafta) kiritilishi yoki oxirgi hayz sanasi qayd etilgan bo‘lishi kerak.',
   scheduleBasis: 'WHO 2016 — sakkiz marta ko‘rik modeli',
 
   protocolTitle: 'WHO protokoli bo‘yicha eslatma — shifokor tasdiqlashi kerak',
@@ -238,6 +238,21 @@ export const DANGER_SIGN_NAMES: Record<DangerSign, string> = {
 export const TELEGRAM_ESCALATION = {
   signs: 'Bemor Telegram orqali xavf belgisi haqida xabar berdi:',
   homeBp: 'Bemor Telegram orqali uyda o‘lchangan qon bosimini yubordi:',
+} as const
+
+/** Opening of an escalation raised by a red assessment on the midwife's form. */
+export const CLINIC_ESCALATION_REASON = 'Akusherka ko‘rigida qizil zona aniqlandi.'
+
+/** What happened after the assessment itself was saved. */
+export const FOLLOW_UP_UI = {
+  escalationSent: 'Shifokor navbatiga yuborildi.',
+  escalationFailed:
+    'Shifokorga yo‘llanma yuborilmadi. Qayta yuboring yoki shifokorga qo‘ng‘iroq qiling.',
+  escalationRetry: 'Qayta yuborish',
+  escalationRetrying: 'Yuborilmoqda...',
+  scheduleSaved:
+    'Jadval saqlandi. Bemor Telegramga ulangan bo‘lsa, har bir ko‘rikdan 2 kun oldin va o‘sha kuni ertalab eslatma oladi.',
+  scheduleFailed: 'Jadval saqlanmadi, shuning uchun Telegram eslatmalari yuborilmaydi.',
 } as const
 
 /** Shown on the midwife's screen so she can read the code out to the patient. */

@@ -15,9 +15,15 @@ import {
   type NumericFormValues,
 } from '../lib/assessment-row'
 import { extractFields, type ExtractedFields } from '../lib/extract-client'
-import { scoreAssessment, type RiskResult } from '../lib/risk'
-import { estimateLmpFromGestationalAge } from '../lib/schedule'
+import { scoreAssessment } from '../lib/risk'
+import { scheduleAnchor } from '../lib/schedule'
 import { getAuthedSupabase } from '../lib/supabase'
+import {
+  raiseClinicEscalation,
+  readRecordedLmp,
+  saveSchedule,
+  type SavedVisit,
+} from '../lib/visit-followup'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NumberField } from './NumberField'
 import { TriState } from './TriState'
@@ -29,16 +35,7 @@ function isUnscored(name: FormFieldName): name is UnscoredField {
   return (UNSCORED as FormFieldName[]).includes(name)
 }
 
-export function EntryForm({
-  onSaved,
-}: {
-  onSaved: (
-    result: RiskResult,
-    assessmentId: string,
-    pregnancyId: string,
-    lmpDate: Date | null,
-  ) => void
-}) {
+export function EntryForm({ onSaved }: { onSaved: (saved: SavedVisit) => void }) {
   const [pregnancyId, setPregnancyId] = useState('')
   const [numbers, setNumbers] = useState<NumericFormValues>({})
   // Every boolean starts as null: not recorded, until someone records it.
@@ -165,15 +162,47 @@ export function EntryForm({
         setError(`${UI.saveFailed} (${insertError.message})`)
         return
       }
-      // The schedule is anchored on the LMP. pregnancies.lmp_date is the real
-      // anchor; until the patient screen exists we derive it from the
-      // gestational age on this visit, which is rounded to whole weeks.
-      const gaWeeks = Number(numbers.gestational_age_weeks ?? '')
-      const lmpDate = Number.isFinite(gaWeeks) && numbers.gestational_age_weeks
-        ? estimateLmpFromGestationalAge(new Date(), gaWeeks)
-        : null
 
-      onSaved(result, String(data?.id ?? ''), pregnancyId.trim(), lmpDate)
+      // The assessment is saved. Everything below follows from it and reports
+      // its own outcome on the result screen; none of it can unsave the visit.
+      const assessmentId = String(data.id)
+      const savedPregnancyId = row.pregnancy_id as string
+      const today = new Date()
+
+      // A red result goes to the doctor queue first: it matters most.
+      const escalation = await raiseClinicEscalation(
+        client,
+        assessmentId,
+        savedPregnancyId,
+        result,
+      )
+
+      // The schedule is anchored on pregnancies.lmp_date when it is recorded,
+      // otherwise estimated from this visit's gestational age. The screen shows
+      // it from the same anchor it is stored from, so the dates she sees are the
+      // dates the patient is reminded of.
+      const gaRaw = numbers.gestational_age_weeks?.trim() ?? ''
+      const lmpDate = scheduleAnchor(
+        await readRecordedLmp(client, savedPregnancyId),
+        gaRaw === '' ? null : Number(gaRaw),
+        today,
+      )
+      const schedule = await saveSchedule(client, {
+        pregnancyId: savedPregnancyId,
+        assessmentId,
+        lmpDate,
+        zone: result.zone,
+        today,
+      })
+
+      onSaved({
+        result,
+        assessmentId,
+        pregnancyId: savedPregnancyId,
+        lmpDate,
+        escalation,
+        schedule,
+      })
     } catch (caught) {
       setError(`${UI.saveFailed} (${(caught as Error).message})`)
     } finally {

@@ -41,6 +41,7 @@ import {
   type ImmediateSign,
   type TriageResult,
 } from './danger-signs.ts'
+import { escalates } from './escalation.ts'
 import { DANGER_SIGN_NAMES, FACTOR_SENTENCES, TELEGRAM_ESCALATION } from './labels.ts'
 
 /** The WHO danger-sign list this file applies. Bump if the list changes. */
@@ -93,7 +94,7 @@ export function decidePatientReport(
   })
 
   const zone: RiskZone = triage.immediate.length > 0 ? 'qizil' : risk.zone
-  const escalate = zone === 'qizil'
+  const escalate = escalates(zone)
 
   return {
     triage,
