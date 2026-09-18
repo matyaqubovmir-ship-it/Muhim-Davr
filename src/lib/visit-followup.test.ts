@@ -46,6 +46,7 @@ function fakeClient(options: {
 
 const RED = scoreAssessment({ bp_systolic: 170, bp_diastolic: 112 })
 const GREEN = scoreAssessment({ bp_systolic: 110, bp_diastolic: 70, hemoglobin: 125, proteinuria: false, age: 25 })
+const YELLOW = scoreAssessment({ bp_systolic: 145, bp_diastolic: 92, proteinuria: false, hemoglobin: 125, age: 25 })
 
 describe('raiseClinicEscalation', () => {
   it('inserts a clinic escalation for a red assessment', async () => {
@@ -64,10 +65,25 @@ describe('raiseClinicEscalation', () => {
     ])
   })
 
-  it('writes nothing for an assessment that is not red', async () => {
+  it.each([
+    ['yashil', GREEN],
+    ['sariq', YELLOW],
+  ])('writes nothing for a %s assessment', async (zone, result) => {
+    expect(result.zone).toBe(zone)
     const { client, recorded } = fakeClient({})
-    expect(await raiseClinicEscalation(client, 'a-1', 'p-1', GREEN)).toEqual({ kind: 'not_needed' })
+    expect(await raiseClinicEscalation(client, 'a-1', 'p-1', result)).toEqual({ kind: 'not_needed' })
     expect(recorded.inserts).toHaveLength(0)
+  })
+
+  it('names the absolute flag in the reason and starts the escalation open', async () => {
+    const { client, recorded } = fakeClient({})
+    await raiseClinicEscalation(client, 'a-1', 'p-1', RED)
+    const row = recorded.inserts[0].row as Record<string, unknown>
+    expect(row.reason).toContain('160/110')
+    // Status is left to the column default, 'ochiq', which is what the
+    // escalations_status_timestamps check requires of a row with no timestamps.
+    expect(row).not.toHaveProperty('status')
+    expect(row).not.toHaveProperty('acknowledged_at')
   })
 
   it('treats "already escalated" as sent, so a retry is safe', async () => {

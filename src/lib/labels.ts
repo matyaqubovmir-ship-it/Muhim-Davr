@@ -243,6 +243,14 @@ export const TELEGRAM_ESCALATION = {
 /** Opening of an escalation raised by a red assessment on the midwife's form. */
 export const CLINIC_ESCALATION_REASON = 'Akusherka ko‘rigida qizil zona aniqlandi.'
 
+/**
+ * For a red reached on points alone, where no single finding forced it: the
+ * total, before the factors that added up to it.
+ */
+export function clinicEscalationPointsSentence(score: number): string {
+  return `Mutlaq xavf belgisi yo‘q — qizil zona omillar yig‘indisi bo‘yicha: ${score} ball.`
+}
+
 /** What happened after the assessment itself was saved. */
 export const FOLLOW_UP_UI = {
   escalationSent: 'Shifokor navbatiga yuborildi.',

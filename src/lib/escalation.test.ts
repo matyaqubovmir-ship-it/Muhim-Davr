@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { clinicEscalationRow, escalates } from './escalation'
-import { CLINIC_ESCALATION_REASON } from './labels'
+import { clinicEscalationReason, clinicEscalationRow, escalates } from './escalation'
+import { CLINIC_ESCALATION_REASON, FACTOR_SENTENCES, clinicEscalationPointsSentence } from './labels'
 import { scoreAssessment } from './risk'
 
 describe('escalates', () => {
@@ -52,5 +52,38 @@ describe('clinicEscalationRow', () => {
 
   it('copies the factor list rather than sharing it', () => {
     expect(row.fired_factors).not.toBe(result.firedFactors)
+  })
+})
+
+describe('clinicEscalationReason', () => {
+  it('names only the absolute flags, while fired_factors keeps them all', () => {
+    const result = scoreAssessment({ bp_systolic: 165, bp_diastolic: 100, gravida: 1, prior_caesarean: true })
+    const row = clinicEscalationRow('a', 'p', result)
+    expect(row.reason).toBe(`${CLINIC_ESCALATION_REASON} ${FACTOR_SENTENCES.severe_hypertension}`)
+    expect(row.reason).not.toContain(FACTOR_SENTENCES.primigravida)
+    expect(row.fired_factors).toEqual(['severe_hypertension', 'prior_caesarean', 'primigravida'])
+  })
+
+  it('names every absolute flag when several fire, in the scorer’s order', () => {
+    const reason = clinicEscalationReason(
+      scoreAssessment({ bp_systolic: 150, bp_diastolic: 95, proteinuria: true, antepartum_bleeding: true }),
+    )
+    expect(reason).toBe(
+      [
+        CLINIC_ESCALATION_REASON,
+        FACTOR_SENTENCES.preeclampsia_suspected,
+        FACTOR_SENTENCES.antepartum_bleeding,
+      ].join(' '),
+    )
+  })
+
+  it('explains a red reached on points alone by its total and what added up to it', () => {
+    const result = scoreAssessment({ prior_preeclampsia: true, chronic_hypertension: true, age: 40 })
+    expect(result.zone).toBe('qizil')
+    const reason = clinicEscalationReason(result)
+    expect(reason).toContain(clinicEscalationPointsSentence(result.score))
+    expect(reason).toContain(FACTOR_SENTENCES.prior_preeclampsia)
+    expect(reason).toContain(FACTOR_SENTENCES.chronic_condition)
+    expect(reason).toContain(FACTOR_SENTENCES.maternal_age)
   })
 })

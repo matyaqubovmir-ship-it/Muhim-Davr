@@ -14,8 +14,12 @@
  * Pure: builds the row, does not write it.
  */
 
-import { CLINIC_ESCALATION_REASON, FACTOR_SENTENCES } from './labels.ts'
-import type { RiskResult, RiskZone } from './risk.ts'
+import {
+  CLINIC_ESCALATION_REASON,
+  FACTOR_SENTENCES,
+  clinicEscalationPointsSentence,
+} from './labels.ts'
+import { isAbsoluteFlag, type RiskResult, type RiskZone } from './risk.ts'
 
 export type EscalationSource = 'clinic' | 'telegram'
 
@@ -32,9 +36,26 @@ export function escalates(zone: RiskZone): boolean {
   return zone === 'qizil'
 }
 
-/** The reason line a doctor reads: where it came from, then each factor as a sentence. */
+/**
+ * The reason line a doctor reads: where it came from, then the absolute flags
+ * that made it red, each as a sentence.
+ *
+ * Only the absolute flags, because those are why it is an emergency; the full
+ * factor list is on the same row in fired_factors, and the queue shows it. A red
+ * reached on points alone has no absolute flag to name, so there the reason
+ * gives the total and the factors that added up to it — a reason line that said
+ * nothing would leave the doctor to reconstruct it.
+ */
 export function clinicEscalationReason(result: RiskResult): string {
-  return [CLINIC_ESCALATION_REASON, ...result.firedFactors.map((f) => FACTOR_SENTENCES[f])].join(' ')
+  const flags = result.firedFactors.filter(isAbsoluteFlag)
+  const explained =
+    flags.length > 0
+      ? flags.map((flag) => FACTOR_SENTENCES[flag])
+      : [
+          clinicEscalationPointsSentence(result.score),
+          ...result.firedFactors.map((factor) => FACTOR_SENTENCES[factor]),
+        ]
+  return [CLINIC_ESCALATION_REASON, ...explained].join(' ')
 }
 
 /** The escalation for a red assessment saved on the midwife's form. */

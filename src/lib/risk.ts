@@ -41,6 +41,24 @@ export type RiskFactor =
   | 'short_interval'
 
 /**
+ * The factors that force qizil on their own, named so an escalation can say
+ * which one did. scoreAssessment below is what enforces them; risk.test.ts
+ * checks that each of these forces qizil alone and that nothing else does.
+ */
+export const ABSOLUTE_FLAGS = [
+  'severe_hypertension',
+  'preeclampsia_suspected',
+  'severe_anemia',
+  'antepartum_bleeding',
+] as const satisfies readonly RiskFactor[]
+
+export type AbsoluteFlag = (typeof ABSOLUTE_FLAGS)[number]
+
+export function isAbsoluteFlag(factor: RiskFactor): factor is AbsoluteFlag {
+  return (ABSOLUTE_FLAGS as readonly RiskFactor[]).includes(factor)
+}
+
+/**
  * Fields whose absence we surface explicitly. Missing data is not low risk, it
  * is unknown risk, and the UI is expected to say so rather than render a
  * reassuring green.

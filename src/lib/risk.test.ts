@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { RULES_VERSION, scoreAssessment } from './risk'
+import {
+  ABSOLUTE_FLAGS,
+  RULES_VERSION,
+  isAbsoluteFlag,
+  scoreAssessment,
+  type AbsoluteFlag,
+  type AssessmentInput,
+  type RiskFactor,
+} from './risk'
 
 describe('absolute flags', () => {
   it('BP 160/100 fires severe_hypertension and forces qizil', () => {
@@ -293,5 +301,54 @@ describe('rules version', () => {
   it('is stamped on every result', () => {
     expect(scoreAssessment({}).rulesVersion).toBe('1.0.0')
     expect(RULES_VERSION).toBe('1.0.0')
+  })
+})
+
+describe('ABSOLUTE_FLAGS matches what the scorer does', () => {
+  // The list is what escalations name as the reason for a red result. If it
+  // drifted from the rules in scoreAssessment, a doctor would be told the wrong
+  // reason — or none.
+  const firesAlone: Record<AbsoluteFlag, AssessmentInput> = {
+    severe_hypertension: { bp_systolic: 165, bp_diastolic: 100 },
+    preeclampsia_suspected: { bp_systolic: 142, bp_diastolic: 92, proteinuria: true, gestational_age_weeks: 30 },
+    severe_anemia: { hemoglobin: 65 },
+    antepartum_bleeding: { antepartum_bleeding: true },
+  }
+
+  it.each(ABSOLUTE_FLAGS)('%s forces qizil on its own', (flag) => {
+    const r = scoreAssessment(firesAlone[flag])
+    expect(r.firedFactors).toContain(flag)
+    expect(r.zone).toBe('qizil')
+  })
+
+  // Every other factor, fired alone. Typed against RiskFactor, so a factor added
+  // to the scorer without a case here stops the build.
+  const others: Record<Exclude<RiskFactor, AbsoluteFlag | 'gestational_age_unknown'>, AssessmentInput> = {
+    hypertension_moderate: { bp_systolic: 145, bp_diastolic: 92 },
+    anemia: { hemoglobin: 100 },
+    prior_preeclampsia: { prior_preeclampsia: true },
+    chronic_condition: { diabetes: true },
+    prior_loss: { prior_stillbirth_or_neonatal_death: true },
+    multiple_gestation: { multiple_gestation: true },
+    maternal_age: { age: 40 },
+    prior_caesarean: { prior_caesarean: true },
+    grand_multipara: { para: 5 },
+    distance_from_care: { travel_minutes_to_facility: 90 },
+    missed_visits: { missed_visits: 3 },
+    primigravida: { gravida: 1 },
+    obesity: { bmi: 32 },
+    family_history: { family_history_preeclampsia: true },
+    short_interval: { birth_interval_months: 12 },
+  }
+
+  it.each(Object.entries(others))('%s alone is not an absolute flag and does not force qizil', (factor, input) => {
+    const r = scoreAssessment(input)
+    expect(r.firedFactors).toEqual([factor])
+    expect(isAbsoluteFlag(factor as RiskFactor)).toBe(false)
+    expect(r.zone).not.toBe('qizil')
+  })
+
+  it('gestational_age_unknown is a marker, never a flag', () => {
+    expect(isAbsoluteFlag('gestational_age_unknown')).toBe(false)
   })
 })
