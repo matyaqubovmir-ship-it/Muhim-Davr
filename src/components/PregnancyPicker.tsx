@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { PICKER_UI } from '../lib/labels'
 import { searchPregnancies, type PregnancyChoice } from '../lib/patients'
 import { getAuthedSupabase } from '../lib/supabase'
+import { Button } from './Button'
 
 const SEARCH_DELAY_MS = 250
 
@@ -34,6 +35,13 @@ export function PregnancyPicker({
   const inputRef = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
   const [results, setResults] = useState<PregnancyChoice[]>([])
+  /**
+   * The text the results were found for. Only results for exactly what is in
+   * the box now may be picked: pressing Enter on "Alimova" while the list
+   * still showed "Ali"'s results picked Aliyeva — and a visit saved against
+   * the wrong woman cannot be removed (assessments are append-only).
+   */
+  const [resultsFor, setResultsFor] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'searching' | 'error'>('idle')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -57,6 +65,7 @@ export function PregnancyPicker({
         .then((found) => {
           if (cancelled) return
           setResults(found)
+          setResultsFor(query)
           setActive(0)
           setStatus('idle')
         })
@@ -69,6 +78,9 @@ export function PregnancyPicker({
       clearTimeout(timer)
     }
   }, [text, value])
+
+  const current = text.trim()
+  const fresh = resultsFor === current && status === 'idle'
 
   function pick(index: number) {
     if (index < results.length) {
@@ -84,21 +96,22 @@ export function PregnancyPicker({
     return (
       <div className="py-2">
         <div className="mb-1.5 text-sm leading-snug text-slate-800">{PICKER_UI.label}</div>
-        <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border-input bg-surface px-3 py-2">
+        <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-brand/40 bg-brand-soft/50 px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div>
             <div className="text-base font-semibold text-text-primary">{value.fullName}</div>
             <div className="text-xs text-slate-600">{describe(value)}</div>
           </div>
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
             onClick={() => {
               onChange(null)
               requestAnimationFrame(() => inputRef.current?.focus())
             }}
-            className="shrink-0 rounded-md border border-border-input px-2.5 py-1 text-sm font-semibold text-slate-700 hover:border-slate-500"
           >
             {PICKER_UI.change}
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -124,8 +137,14 @@ export function PregnancyPicker({
         value={text}
         placeholder={PICKER_UI.placeholder}
         onChange={(event) => {
-          setText(event.target.value)
+          const next = event.target.value
+          setText(next)
           setOpen(true)
+          // Whatever was listed belongs to the old text: clear it at once.
+          setResults([])
+          setResultsFor(null)
+          setActive(0)
+          setStatus(next.trim().length >= 2 ? 'searching' : 'idle')
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
@@ -139,13 +158,16 @@ export function PregnancyPicker({
             setActive((a) => (a - 1 + optionCount) % optionCount)
           } else if (event.key === 'Enter') {
             event.preventDefault()
-            pick(active)
+            // Not until the list is for exactly what is typed — otherwise
+            // Enter picks from the last search, or lands on "new patient"
+            // for a woman who already exists.
+            if (fresh) pick(active)
           } else if (event.key === 'Escape') {
             setOpen(false)
           }
         }}
         className={[
-          'min-h-11 w-full rounded-md border bg-surface px-3 text-base text-text-primary focus:border-brand focus:outline-none',
+          'min-h-11 w-full rounded-lg border bg-surface px-3 text-base text-text-primary shadow-[inset_0_1px_1px_rgba(15,23,42,0.04)] focus:border-brand focus:ring-3 focus:ring-brand/15 focus:outline-none',
           invalid ? 'border-red-400' : 'border-border-input',
         ].join(' ')}
       />
@@ -154,7 +176,7 @@ export function PregnancyPicker({
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-auto rounded-md border border-slate-300 bg-surface py-1 shadow-lg"
+          className="absolute inset-x-0 z-20 mt-1.5 max-h-72 overflow-auto rounded-xl border border-border bg-surface py-1 shadow-[0_12px_32px_-8px_rgba(15,23,42,0.25)]"
         >
           {status === 'searching' ? (
             <li className="px-3 py-2 text-sm text-text-muted">{PICKER_UI.searching}</li>
@@ -175,7 +197,7 @@ export function PregnancyPicker({
                 pick(index)
               }}
               onMouseEnter={() => setActive(index)}
-              className={['cursor-pointer px-3 py-2', index === active ? 'bg-slate-100' : ''].join(' ')}
+              className={['mx-1 cursor-pointer rounded-lg px-3 py-2', index === active ? 'bg-brand-soft' : ''].join(' ')}
             >
               <div className="text-sm font-semibold text-text-primary">{choice.fullName}</div>
               <div className="text-xs text-slate-600">{describe(choice)}</div>
@@ -191,8 +213,8 @@ export function PregnancyPicker({
             }}
             onMouseEnter={() => setActive(results.length)}
             className={[
-              'cursor-pointer border-t border-slate-100 px-3 py-2 text-sm font-semibold text-text-primary',
-              active === results.length ? 'bg-slate-100' : '',
+              'mx-1 mt-1 cursor-pointer rounded-lg border-t border-slate-100 px-3 py-2 text-sm font-semibold text-brand',
+              active === results.length ? 'bg-brand-soft' : '',
             ].join(' ')}
           >
             + {PICKER_UI.createNew}

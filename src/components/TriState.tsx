@@ -31,7 +31,7 @@ export function TriState({
         {label}
         {fromAi ? <AiBadge /> : null}
       </div>
-      <div role="group" aria-label={label} className="grid grid-cols-3 gap-1.5">
+      <div role="group" aria-label={label} className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
         {options.map((option) => {
           const selected = value === option.state
           const unknown = option.state === null
@@ -42,13 +42,13 @@ export function TriState({
               aria-pressed={selected}
               onClick={() => onChange(option.state)}
               className={[
-                'min-h-11 rounded-md border px-1 text-[11px] leading-tight font-medium',
-                'transition-colors',
+                'min-h-10 rounded-lg px-1 text-[13px] leading-tight font-semibold',
+                'transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
                 selected
                   ? unknown
-                    ? 'border-slate-500 bg-slate-600 text-white'
-                    : 'border-brand bg-brand text-white'
-                  : 'border-border-input bg-surface text-slate-600',
+                    ? 'bg-slate-600 text-white shadow-[0_1px_2px_rgba(15,23,42,0.15)]'
+                    : 'bg-brand text-white shadow-[0_1px_2px_rgba(15,23,42,0.1),0_3px_8px_-3px_rgba(37,99,235,0.55)]'
+                  : 'text-slate-700 hover:bg-white hover:text-text-primary',
               ].join(' ')}
             >
               {option.label}

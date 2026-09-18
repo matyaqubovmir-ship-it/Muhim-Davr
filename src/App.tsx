@@ -242,7 +242,7 @@ function MidwifeShell({
                 to={pathFor({ name: tab } as Route)}
                 aria-current={active ? 'page' : undefined}
                 className={[
-                  'flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                  'flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg px-2 text-[12px] leading-tight font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-10 sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm',
                   active
                     ? 'bg-brand text-white shadow-[0_1px_2px_rgba(15,23,42,0.1),0_4px_10px_-4px_rgba(37,99,235,0.55)]'
                     : 'text-slate-700 hover:bg-slate-100 hover:text-text-primary',

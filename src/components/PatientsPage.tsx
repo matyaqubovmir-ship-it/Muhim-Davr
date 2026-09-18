@@ -7,6 +7,7 @@ import { PATIENT_LIST_LIMIT, changedPatients, loadRegistryPatients, type Registr
 import { getAuthedSupabase } from '../lib/supabase'
 import { LiveBadge } from './LiveBadge'
 import { RegistryTable, SkeletonTable } from './RegistryTable'
+import { Button } from './Button'
 
 const SEARCH_DELAY_MS = 250
 
@@ -82,9 +83,9 @@ export function PatientsPage() {
       {error !== null ? (
         <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           {REGISTRY_UI.loadFailed} ({error})
-          <button type="button" onClick={load} className="ml-2 font-semibold underline">
+          <Button size="sm" variant="secondary" onClick={load} className="ml-2">
             {REGISTRY_UI.retry}
-          </button>
+          </Button>
         </div>
       ) : null}
 

@@ -15,7 +15,7 @@ import { ZonePill } from './Zone'
 
 export function StalenessChip({ staleness }: { staleness: Staleness }) {
   return (
-    <span className="inline-block rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-900">
+    <span className="inline-block max-w-full rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] leading-snug font-medium text-amber-900">
       {stalenessText(staleness)}
     </span>
   )

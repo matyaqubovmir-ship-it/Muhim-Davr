@@ -3,6 +3,7 @@ import { FOLLOW_UP_UI } from '../lib/labels'
 import type { RiskResult } from '../lib/risk'
 import { getAuthedSupabase } from '../lib/supabase'
 import { raiseClinicEscalation, type EscalationOutcome } from '../lib/visit-followup'
+import { Button } from './Button'
 
 /**
  * Whether the doctor was told about this red assessment.
@@ -52,14 +53,9 @@ export function EscalationNotice({
     <div role="alert" className="mt-3 rounded-md border border-red-300 bg-red-50 p-3">
       <p className="text-sm font-semibold text-red-900">{FOLLOW_UP_UI.escalationFailed}</p>
       <p className="mt-1 text-xs break-words text-red-800">({outcome.message})</p>
-      <button
-        type="button"
-        onClick={retry}
-        disabled={retrying}
-        className="mt-2 min-h-10 rounded-md bg-red-700 px-3 text-sm font-semibold text-white disabled:opacity-60"
-      >
+      <Button variant="danger" size="sm" className="mt-2" loading={retrying} onClick={retry}>
         {retrying ? FOLLOW_UP_UI.escalationRetrying : FOLLOW_UP_UI.escalationRetry}
-      </button>
+      </Button>
     </div>
   )
 }

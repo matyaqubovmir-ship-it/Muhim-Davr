@@ -114,6 +114,8 @@ export interface DashboardData {
   openEscalations: number
   /** Minutes the oldest open escalation has waited, or null with none open. */
   oldestOpenMinutes: number | null
+  /** When the oldest open escalation was raised, so the screen can keep counting. */
+  oldestOpenAt: Date | null
   avgAckMinutes: number | null
   linkedToTelegram: number
   daily: DailyCount[]
@@ -133,6 +135,9 @@ function nameVia(pregnancy: unknown): string | null {
   return typeof patient?.full_name === 'string' ? patient.full_name : null
 }
 
+/** Active pregnancies read for the attention list and overdue count. Far above a region's pilot. */
+const DASHBOARD_PATIENT_CAP = 5000
+
 /** Most rows read for the activity charts and feed. Far above a pilot's fortnight. */
 const ACTIVITY_READ_CAP = 2000
 
@@ -143,7 +148,9 @@ export async function loadDashboard(client: SupabaseClient, now: Date = new Date
   const [districts, patients, open, acks, recentAssessments, recentEscalations, recentReports, channels] =
     await Promise.all([
       loadDistricts(client),
-      loadRegistryPatients(client, {}, now),
+      // Everyone, not the patients list's first 200 by name: a qizil woman
+      // called Yusupova must not fall off "needs attention" alphabetically.
+      loadRegistryPatients(client, { limit: DASHBOARD_PATIENT_CAP }, now),
       client.from('escalations').select('id, created_at').eq('status', 'ochiq'),
       loadRecentAcknowledgements(client, now),
       client
@@ -216,6 +223,7 @@ export async function loadDashboard(client: SupabaseClient, now: Date = new Date
     attention: attentionList(patients),
     overdue: patients.filter((p) => p.staleness?.kind === 'overdue').length,
     openEscalations: openRows.length,
+    oldestOpenAt: openDates.length === 0 ? null : new Date(Math.min(...openDates.map((d) => d.getTime()))),
     oldestOpenMinutes:
       openDates.length === 0 ? null : minutesBetween(new Date(Math.min(...openDates.map((d) => d.getTime()))), now),
     avgAckMinutes: averageAckMinutes(acks),

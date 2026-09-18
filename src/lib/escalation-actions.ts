@@ -29,9 +29,17 @@ export function closePatch(userId: string | null, now: Date, note: string) {
   return { status: 'yopiq', closed_at: now.toISOString(), closed_by: userId, resolution_note: note.trim() }
 }
 
-async function currentUserId(client: SupabaseClient): Promise<string | null> {
-  const { data } = await client.auth.getUser()
-  return data.user?.id ?? null
+/**
+ * Who is acting, from the session this device holds. getUser() asks the
+ * server and quietly returned null on a dropped connection, writing an
+ * acknowledgement that records nobody; getSession() reads the session the
+ * write is about to be sent with, and a missing one stops the write.
+ */
+async function currentUserId(client: SupabaseClient): Promise<string> {
+  const { data } = await client.auth.getSession()
+  const id = data.session?.user.id
+  if (!id) throw new Error('no session')
+  return id
 }
 
 export async function acknowledgeEscalation(

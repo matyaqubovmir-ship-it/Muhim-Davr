@@ -15,7 +15,7 @@ export function LiveBadge({ status, onReconnect }: { status: LiveStatus; onRecon
         <button
           type="button"
           onClick={onReconnect}
-          className="rounded border border-amber-400 bg-amber-50 px-2 py-0.5 font-semibold"
+          className="rounded-md border border-amber-400 bg-amber-50 px-2 py-0.5 font-semibold transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           {REGISTRY_UI.reconnect}
         </button>

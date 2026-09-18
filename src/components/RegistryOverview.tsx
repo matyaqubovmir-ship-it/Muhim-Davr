@@ -10,6 +10,7 @@ import { pathFor } from '../lib/routes'
 import { getAuthedSupabase } from '../lib/supabase'
 import { AppLink } from './AppLink'
 import { LiveBadge } from './LiveBadge'
+import { Button } from './Button'
 
 function SkeletonCard() {
   return (
@@ -114,9 +115,9 @@ export function RegistryOverview() {
       {error !== null ? (
         <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           {REGISTRY_UI.loadFailed} ({error})
-          <button type="button" onClick={load} className="ml-2 font-semibold underline">
+          <Button size="sm" variant="secondary" onClick={load} className="ml-2">
             {REGISTRY_UI.retry}
-          </button>
+          </Button>
         </div>
       ) : null}
 

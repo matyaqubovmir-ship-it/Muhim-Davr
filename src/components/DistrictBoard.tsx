@@ -19,6 +19,7 @@ import { AppLink } from './AppLink'
 import { LiveBadge } from './LiveBadge'
 import { RegistryTable, SkeletonTable, StalenessChip } from './RegistryTable'
 import { ZoneIcon } from './Zone'
+import { Button } from './Button'
 
 type View = 'table' | 'board'
 const VIEW_KEY = 'ona.registry.view'
@@ -192,7 +193,7 @@ export function DistrictBoard({ district }: { district: string }) {
         </div>
         <div className="flex items-center gap-3">
           <LiveBadge status={live.status} onReconnect={live.reconnect} />
-          <div role="group" className="inline-flex rounded-md border border-border bg-surface p-0.5 text-sm">
+          <div role="group" className="inline-flex rounded-xl bg-slate-100 p-1 text-sm">
             {(['table', 'board'] as const).map((option) => (
               <button
                 key={option}
@@ -200,8 +201,10 @@ export function DistrictBoard({ district }: { district: string }) {
                 aria-pressed={view === option}
                 onClick={() => chooseView(option)}
                 className={[
-                  'rounded px-3 py-1 font-medium',
-                  view === option ? 'bg-brand text-white' : 'text-slate-700 hover:text-text-primary',
+                  'min-h-8 rounded-lg px-3 font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                  view === option
+                    ? 'bg-surface text-text-primary shadow-[0_1px_2px_rgba(15,23,42,0.1),0_2px_6px_-2px_rgba(15,23,42,0.12)]'
+                    : 'text-slate-600 hover:text-text-primary',
                 ].join(' ')}
               >
                 {option === 'table' ? REGISTRY_UI.viewTable : REGISTRY_UI.viewBoard}
@@ -214,9 +217,9 @@ export function DistrictBoard({ district }: { district: string }) {
       {error !== null ? (
         <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           {REGISTRY_UI.loadFailed} ({error})
-          <button type="button" onClick={load} className="ml-2 font-semibold underline">
+          <Button size="sm" variant="secondary" onClick={load} className="ml-2">
             {REGISTRY_UI.retry}
-          </button>
+          </Button>
         </div>
       ) : null}
 

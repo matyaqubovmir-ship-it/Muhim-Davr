@@ -340,7 +340,7 @@ export const PATIENT_LIST_LIMIT = 200
  */
 export async function loadRegistryPatients(
   client: SupabaseClient,
-  filter: { district?: string; nameContains?: string },
+  filter: { district?: string; nameContains?: string; limit?: number },
   today: Date = new Date(),
 ): Promise<RegistryPatient[]> {
   let query = client
@@ -352,7 +352,7 @@ export async function loadRegistryPatients(
   if (filter.district !== undefined) query = query.eq('district', filter.district)
   const text = filter.nameContains?.trim() ?? ''
   if (text !== '') query = query.ilike('full_name', `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`)
-  if (filter.district === undefined) query = query.order('full_name').limit(PATIENT_LIST_LIMIT)
+  if (filter.district === undefined) query = query.order('full_name').limit(filter.limit ?? PATIENT_LIST_LIMIT)
 
   const { data, error } = await query
   if (error) throw new Error(error.message)

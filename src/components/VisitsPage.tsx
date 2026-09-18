@@ -27,14 +27,14 @@ const GROUP_TITLE: Record<CalendarGroup, string> = {
 function ReminderStatus({ visit, days }: { visit: CalendarVisit; days: number }) {
   if (!visit.hasTelegram) {
     return (
-      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+      <span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-[11px] leading-snug font-semibold text-amber-900">
         {VISITS_UI.noTelegram}
       </span>
     )
   }
   if (visit.remindersSent.length > 0) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200">
+      <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[11px] leading-snug font-semibold text-sky-800 ring-1 ring-sky-200">
         <SendIcon size={11} />
         {VISITS_UI.remindersSent}:{' '}
         {visit.remindersSent.map((k) => (k === 'ikki_kun' ? VISITS_UI.reminderTwoDays : VISITS_UI.reminderMorning)).join(', ')}

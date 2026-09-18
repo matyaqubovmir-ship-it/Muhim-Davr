@@ -55,7 +55,7 @@ function fakeClient(matched: unknown[]) {
   }
   builder.then = (resolve: (v: unknown) => unknown) => resolve({ data: matched, error: null })
   const client = {
-    auth: { getUser: async () => ({ data: { user: { id: 'u-1' } } }) },
+    auth: { getSession: async () => ({ data: { session: { user: { id: 'u-1' } } } }) },
     from: () => builder,
   }
   return { client: client as unknown as SupabaseClient, calls }

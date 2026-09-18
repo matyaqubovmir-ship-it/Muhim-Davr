@@ -21,6 +21,8 @@ import { formatMoment } from '../lib/patient-detail'
 import { pathFor } from '../lib/routes'
 import { getAuthedSupabase } from '../lib/supabase'
 import { AppLink } from './AppLink'
+import { Button } from './Button'
+import { CheckIcon } from './Icons'
 import { LiveBadge } from './LiveBadge'
 import { ZoneIcon } from './Zone'
 
@@ -163,6 +165,11 @@ function Card({
 }) {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  // The status this card moved away from, until the re-read shows the new
+  // one. Without it the buttons woke up while the card still said "ochiq", and
+  // a second tap told her someone else had already taken her own alert.
+  const [movedFrom, setMovedFrom] = useState<string | null>(null)
+  const working = busy || movedFrom === row.status
   const [error, setError] = useState<string | null>(null)
   const open = minutesBetween(row.createdAt, now)
   const urgency = urgencyFor(row.status, open)
@@ -180,6 +187,7 @@ function Card({
         kind === 'acknowledge'
           ? await acknowledgeEscalation(client, row.id)
           : await closeEscalation(client, row.id, note)
+      if (outcome === 'done') setMovedFrom(row.status)
       onChanged(outcome === 'already_handled' ? QUEUE_UI.alreadyHandled : null)
     } catch (caught) {
       setError(`${QUEUE_UI.actionFailed} (${caught instanceof Error ? caught.message : String(caught)})`)
@@ -191,7 +199,7 @@ function Card({
   return (
     <li
       className={[
-        'rounded-lg border border-l-4 border-border border-l-zone-qizil bg-surface p-4 shadow-sm',
+        'rounded-xl border border-l-4 border-border border-l-zone-qizil bg-surface p-4 shadow-[0_1px_2px_rgba(15,23,42,0.05),0_4px_16px_-8px_rgba(15,23,42,0.12)]',
         isNew ? 'row-enter' : '',
       ].join(' ')}
     >
@@ -250,14 +258,9 @@ function Card({
 
       <div className="mt-3 border-t border-border pt-3">
         {row.status === 'ochiq' ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => act('acknowledge')}
-            className="min-h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {busy ? QUEUE_UI.working : QUEUE_UI.acknowledge}
-          </button>
+          <Button variant="primary" loading={working} onClick={() => act('acknowledge')} icon={<CheckIcon size={16} />}>
+            {working ? QUEUE_UI.working : QUEUE_UI.acknowledge}
+          </Button>
         ) : null}
 
         {row.status === 'qabul' ? (
@@ -275,17 +278,12 @@ function Card({
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 placeholder={QUEUE_UI.notePlaceholder}
-                className="mt-1 w-full resize-y rounded-md border border-border bg-surface p-2 text-sm text-text-primary focus:border-brand focus:outline-none"
+                className="mt-1 w-full resize-y rounded-lg border border-border-input bg-surface p-2.5 text-sm text-text-primary shadow-[inset_0_1px_1px_rgba(15,23,42,0.04)] focus:border-brand focus:ring-3 focus:ring-brand/15 focus:outline-none"
               />
             </label>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => act('close')}
-              className="min-h-10 rounded-md border border-text-primary bg-surface px-4 text-sm font-semibold text-text-primary disabled:opacity-60"
-            >
-              {busy ? QUEUE_UI.working : QUEUE_UI.close}
-            </button>
+            <Button variant="success" loading={working} onClick={() => act('close')} icon={<CheckIcon size={16} />}>
+              {working ? QUEUE_UI.working : QUEUE_UI.close}
+            </Button>
           </div>
         ) : null}
 
@@ -361,13 +359,9 @@ export function EscalationQueue() {
         <h2 className="text-lg font-semibold text-text-primary">{QUEUE_UI.title}</h2>
         <div className="flex items-center gap-3">
           <LiveBadge status={live.status} onReconnect={live.reconnect} />
-          <button
-            type="button"
-            onClick={load}
-            className="min-h-9 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-primary hover:border-slate-400"
-          >
+          <Button size="sm" variant="secondary" onClick={load}>
             {QUEUE_UI.refresh}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -390,9 +384,9 @@ export function EscalationQueue() {
       {error !== null ? (
         <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           {QUEUE_UI.loadFailed} ({error})
-          <button type="button" onClick={load} className="ml-2 font-semibold underline">
+          <Button size="sm" variant="secondary" onClick={load} className="ml-2">
             {QUEUE_UI.refresh}
-          </button>
+          </Button>
         </div>
       ) : null}
 

@@ -14,6 +14,9 @@ import { formatISODate } from '../lib/schedule'
 import { getAuthedSupabase } from '../lib/supabase'
 import { AppLink } from './AppLink'
 import { LinkCode } from './LinkCode'
+import { Button } from './Button'
+import { buttonClass } from './button-styles'
+import { PlusIcon } from './Icons'
 
 const INPUT =
   'min-h-11 w-full rounded-md border bg-surface px-3 text-base text-text-primary focus:border-brand focus:outline-none'
@@ -130,31 +133,28 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
         <LinkCode pregnancyId={created.pregnancyId} />
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            onClick={() => onRecordVisit(created)}
-            className="min-h-12 flex-1 rounded-lg bg-brand px-4 text-base font-semibold text-white"
-          >
+          <Button variant="primary" size="lg" className="flex-1" icon={<PlusIcon size={18} />} onClick={() => onRecordVisit(created)}>
             {NEW_PATIENT_UI.recordVisit}
-          </button>
+          </Button>
           <AppLink
             to={pathFor({ name: 'patient', pregnancyId: created.pregnancyId })}
-            className="flex min-h-12 flex-1 items-center justify-center rounded-lg border border-text-primary bg-surface px-4 text-base font-semibold text-text-primary"
+            className={buttonClass('secondary', 'lg') + ' flex-1'}
           >
             {NEW_PATIENT_UI.openPatient}
           </AppLink>
         </div>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-3"
           onClick={() => {
             setCreated(null)
             setForm(EMPTY)
             setErrors({})
           }}
-          className="mt-3 text-sm font-semibold text-slate-700 underline"
         >
           {NEW_PATIENT_UI.another}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -297,13 +297,9 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="mt-6 min-h-12 w-full rounded-lg bg-brand text-base font-semibold text-white disabled:opacity-60"
-      >
+      <Button type="submit" variant="primary" size="lg" fullWidth loading={submitting} className="mt-6">
         {submitting ? NEW_PATIENT_UI.submitting : NEW_PATIENT_UI.submit}
-      </button>
+      </Button>
     </form>
   )
 }

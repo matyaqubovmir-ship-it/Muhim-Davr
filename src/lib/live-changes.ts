@@ -122,5 +122,9 @@ export function useLiveChanges(
 
 /** Any new assessment, anywhere: what the registry screens re-read on. */
 export function useLiveAssessments(onInsert: () => void) {
-  return useLiveChanges({ table: 'assessments', events: ['INSERT'], delayMs: REFRESH_DELAY_MS }, () => onInsert())
+  const live = useLiveChanges({ table: 'assessments', events: ['INSERT'], delayMs: REFRESH_DELAY_MS }, () => onInsert())
+  // A newly registered woman has no assessment yet, so she arrives through
+  // pregnancies — broadcast once 007 adds it to Realtime, silent before.
+  useLiveChanges({ table: 'pregnancies', events: ['INSERT', 'UPDATE'], delayMs: REFRESH_DELAY_MS }, () => onInsert())
+  return live
 }

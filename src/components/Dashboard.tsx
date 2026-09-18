@@ -11,6 +11,7 @@ import { getAuthedSupabase } from '../lib/supabase'
 import { useWidth } from '../lib/use-width'
 import { TOKENS } from '../lib/zone-style'
 import { AppLink } from './AppLink'
+import { Button } from './Button'
 import { AlertIcon, ChatIcon } from './Icons'
 import { LiveBadge } from './LiveBadge'
 import { StalenessChip } from './RegistryTable'
@@ -326,6 +327,14 @@ export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  // The clock the "ago" and "oldest waiting" figures read. Ticks on its own,
+  // so a quiet half hour does not leave "3 daq" on screen for an alert that
+  // has now waited thirty-three minutes.
+  const [clockNow, setClockNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = setInterval(() => setClockNow(new Date()), 30_000)
+    return () => clearInterval(timer)
+  }, [])
 
   const begin = useLatestOnly()
 
@@ -351,7 +360,7 @@ export function Dashboard() {
   const liveAssessments = useLiveChanges({ table: 'assessments', events: ['INSERT'], delayMs: REFRESH_DELAY_MS }, () => load())
   useLiveChanges({ table: 'escalations', events: ['INSERT', 'UPDATE'], delayMs: 800 }, () => load())
 
-  const now = updatedAt ?? new Date()
+  const now = clockNow
   const t = data?.totals
 
   return (
@@ -374,9 +383,9 @@ export function Dashboard() {
       {error !== null ? (
         <div role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           {DASHBOARD_UI.loadFailed} ({error})
-          <button type="button" onClick={load} className="ml-2 font-semibold underline">
+          <Button size="sm" variant="secondary" onClick={load} className="ml-2">
             {REGISTRY_UI.retry}
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -395,7 +404,7 @@ export function Dashboard() {
             <StatTile
               label={DASHBOARD_UI.tileOpen}
               value={String(data.openEscalations)}
-              note={data.oldestOpenMinutes === null ? DASHBOARD_UI.tileNoneOpen : `${DASHBOARD_UI.tileOldest} ${formatElapsed(data.oldestOpenMinutes)}`}
+              note={data.oldestOpenAt === null ? DASHBOARD_UI.tileNoneOpen : `${DASHBOARD_UI.tileOldest} ${formatElapsed(Math.max(0, Math.floor((now.getTime() - data.oldestOpenAt.getTime()) / 60_000)))}`}
               tone={data.openEscalations > 0 ? 'qizil' : 'neutral'}
             />
             <StatTile
@@ -429,8 +438,10 @@ export function Dashboard() {
               ) : (
                 <ul className="divide-y divide-border">
                   {data.attention.map((p) => (
-                    <li key={p.pregnancyId} className="flex items-center gap-3 py-2.5">
-                      <ZonePill zone={p.zone} />
+                    <li key={p.pregnancyId} className="flex items-start gap-3 py-2.5">
+                      <div className="shrink-0">
+                        <ZonePill zone={p.zone} />
+                      </div>
                       <div className="min-w-0 flex-1">
                         <AppLink
                           to={pathFor({ name: 'patient', pregnancyId: p.pregnancyId })}
@@ -440,8 +451,12 @@ export function Dashboard() {
                           {p.fullName}
                         </AppLink>
                         <div className="truncate text-xs text-text-muted">{[p.district, p.village].filter(Boolean).join(' · ')}</div>
+                        {p.staleness !== null ? (
+                          <div className="mt-1">
+                            <StalenessChip staleness={p.staleness} />
+                          </div>
+                        ) : null}
                       </div>
-                      {p.staleness !== null ? <StalenessChip staleness={p.staleness} /> : null}
                     </li>
                   ))}
                 </ul>
