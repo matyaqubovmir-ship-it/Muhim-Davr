@@ -13,7 +13,8 @@
     "bot": "node --env-file=.env.local bot/index.ts",
     "broadcast": "node --env-file=.env.local bot/broadcast.ts",
     "seed": "node --env-file=.env.local scripts/seed-demo.ts",
-    "demo:worsen": "node --env-file=.env.local scripts/seed-demo.ts --worsen"
+    "demo:worsen": "node --env-file=.env.local scripts/seed-demo.ts --worsen",
+    "eval:ai": "node --env-file=.env.local scripts/eval-extraction.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
