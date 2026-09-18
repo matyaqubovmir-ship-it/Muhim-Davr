@@ -15,6 +15,7 @@ import {
   QUEUE_UI,
   describeFactor,
 } from '../lib/labels'
+import { useLatestOnly } from '../lib/latest-only'
 import { useLiveChanges } from '../lib/live-changes'
 import { formatMoment } from '../lib/patient-detail'
 import { pathFor } from '../lib/routes'
@@ -23,8 +24,8 @@ import { AppLink } from './AppLink'
 import { LiveBadge } from './LiveBadge'
 import { ZoneIcon } from './Zone'
 
-/** More than a district sees in a day; the queue is for what is open now. */
-const QUEUE_LIMIT = 50
+/** Most rows read per status. More than a district sees in a day. */
+const QUEUE_LIMIT = 100
 
 /** How often the elapsed-time chips re-read the clock. */
 const TICK_MS = 30_000
@@ -55,25 +56,60 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null
 }
 
-async function loadQueue(): Promise<QueueRow[]> {
+interface Queue {
+  rows: QueueRow[]
+  /** Exact counts, from the database — not from the rows that fit on screen. */
+  openCount: number
+  ackCount: number
+}
+
+// Foreign keys named explicitly, so an embed cannot silently change meaning or
+// start failing as ambiguous when another relationship between these tables
+// is added.
+const QUEUE_SELECT =
+  'id, pregnancy_id, status, reason, fired_factors, source, created_at, acknowledged_at, ' +
+  'pregnancies!escalations_pregnancy_id_fkey(link_code, patients(full_name, district)), ' +
+  'patient_reports!patient_reports_escalation_id_fkey(message_text)'
+
+/**
+ * Unacknowledged first, then acknowledged — each read on its own, so a busy
+ * day of acknowledged work can never push a waiting alert off the list. The
+ * waiting ones are read oldest first: if the cap is ever reached, it is the
+ * longest-waiting that are kept.
+ */
+async function loadQueue(): Promise<Queue> {
   const client = await getAuthedSupabase()
-  // Foreign keys named explicitly, so an embed cannot silently change meaning or
-  // start failing as ambiguous when another relationship between these tables
-  // is added.
-  const { data, error } = await client
-    .from('escalations')
-    .select(
-      'id, pregnancy_id, status, reason, fired_factors, source, created_at, acknowledged_at, ' +
-        'pregnancies!escalations_pregnancy_id_fkey(link_code, patients(full_name, district)), ' +
-        'patient_reports!patient_reports_escalation_id_fkey(message_text)',
-    )
-    .in('status', ['ochiq', 'qabul'])
-    .order('created_at', { ascending: false })
-    .limit(QUEUE_LIMIT)
+  const [open, acknowledged, openCount, ackCount] = await Promise.all([
+    client
+      .from('escalations')
+      .select(QUEUE_SELECT)
+      .eq('status', 'ochiq')
+      .order('created_at', { ascending: true })
+      .limit(QUEUE_LIMIT),
+    client
+      .from('escalations')
+      .select(QUEUE_SELECT)
+      .eq('status', 'qabul')
+      .order('created_at', { ascending: false })
+      .limit(QUEUE_LIMIT),
+    client.from('escalations').select('id', { count: 'exact', head: true }).eq('status', 'ochiq'),
+    client.from('escalations').select('id', { count: 'exact', head: true }).eq('status', 'qabul'),
+  ])
+  for (const result of [open, acknowledged, openCount, ackCount]) {
+    if (result.error) throw new Error(result.error.message)
+  }
 
-  if (error) throw new Error(error.message)
+  // Newest waiting alert on top, where a live arrival lands.
+  const waiting = toRows(open.data).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  return {
+    rows: [...waiting, ...toRows(acknowledged.data)],
+    openCount: openCount.count ?? waiting.length,
+    ackCount: ackCount.count ?? 0,
+  }
+}
 
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
+function toRows(data: unknown): QueueRow[] {
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => {
     const pregnancy = one(row.pregnancies)
     const patient = one(pregnancy?.patients)
     const reports = Array.isArray(row.patient_reports) ? row.patient_reports : []
@@ -271,29 +307,36 @@ function Card({
  * and close with a note (qabul -> yopiq).
  */
 export function EscalationQueue() {
-  const [rows, setRows] = useState<QueueRow[] | null>(null)
+  const [queue, setQueue] = useState<Queue | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [avgAck, setAvgAck] = useState<number | null>(null)
   const [now, setNow] = useState(() => new Date())
   const seen = useRef<Set<string> | null>(null)
   const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set())
+  const begin = useLatestOnly()
 
   const load = useCallback(() => {
+    const isLatest = begin()
     getAuthedSupabase()
       .then(async (client) => {
-        const [queue, acks] = await Promise.all([loadQueue(), loadRecentAcknowledgements(client)])
+        const [next, acks] = await Promise.all([loadQueue(), loadRecentAcknowledgements(client)])
+        if (!isLatest()) return
         // Only rows that arrive while the queue is on screen animate in.
         const before = seen.current
-        setFresh(new Set(before === null ? [] : queue.filter((r) => !before.has(r.id)).map((r) => r.id)))
-        seen.current = new Set(queue.map((r) => r.id))
-        setRows(queue)
+        setFresh(new Set(before === null ? [] : next.rows.filter((r) => !before.has(r.id)).map((r) => r.id)))
+        seen.current = new Set(next.rows.map((r) => r.id))
+        setQueue(next)
         setAvgAck(averageAckMinutes(acks))
         setNow(new Date())
         setError(null)
       })
-      .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : String(caught)))
-  }, [])
+      .catch((caught: unknown) => {
+        if (isLatest()) setError(caught instanceof Error ? caught.message : String(caught))
+      })
+  }, [begin])
+
+  const rows = queue?.rows ?? null
 
   useEffect(() => {
     load()
@@ -308,8 +351,9 @@ export function EscalationQueue() {
   // screen until the new one arrives — no flash back to a loading state.
   const live = useLiveChanges({ table: 'escalations', events: ['INSERT', 'UPDATE'], delayMs: 800 }, () => load())
 
-  const openCount = rows?.filter((r) => r.status === 'ochiq').length ?? 0
-  const ackCount = rows?.filter((r) => r.status === 'qabul').length ?? 0
+  const openCount = queue?.openCount ?? 0
+  const ackCount = queue?.ackCount ?? 0
+  const truncated = queue !== null && queue.rows.length < queue.openCount + queue.ackCount
 
   return (
     <div className="pb-10">
@@ -387,7 +431,7 @@ export function EscalationQueue() {
         </ul>
       ) : null}
 
-      {rows !== null && rows.length === QUEUE_LIMIT ? (
+      {truncated ? (
         <p className="mt-3 text-xs text-text-muted">{QUEUE_UI.truncated}</p>
       ) : null}
     </div>

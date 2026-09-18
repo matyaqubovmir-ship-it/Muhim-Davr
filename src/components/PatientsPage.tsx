@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useChangedFlash } from '../lib/changed-flash'
 import { PATIENTS_UI, REGISTRY_UI } from '../lib/labels'
+import { useLatestOnly } from '../lib/latest-only'
 import { useLiveAssessments } from '../lib/live-changes'
 import { PATIENT_LIST_LIMIT, changedPatients, loadRegistryPatients, type RegistryPatient } from '../lib/registry'
 import { getAuthedSupabase } from '../lib/supabase'
@@ -28,17 +29,23 @@ export function PatientsPage() {
     return () => clearTimeout(timer)
   }, [text])
 
+  const begin = useLatestOnly()
+
   const load = useCallback(() => {
+    const isLatest = begin()
     getAuthedSupabase()
       .then((client) => loadRegistryPatients(client, { nameContains: query }))
       .then((next) => {
+        if (!isLatest()) return
         if (previous.current !== null) flash(changedPatients(previous.current, next))
         previous.current = next
         setPatients(next)
         setError(null)
       })
-      .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : String(caught)))
-  }, [query, flash])
+      .catch((caught: unknown) => {
+        if (isLatest()) setError(caught instanceof Error ? caught.message : String(caught))
+      })
+  }, [query, flash, begin])
 
   useEffect(() => {
     // A new search is not a change to highlight.

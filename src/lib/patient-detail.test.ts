@@ -217,7 +217,11 @@ const LIVE_SHAPED = {
     ],
   },
   patient_channels: { count: 0 },
-  patient_reports: { data: [] },
+  patient_reports: {
+    data: [
+      { id: 'r-1', created_at: '2026-09-18T12:00:00+05:00', message_text: 'qon ketyapti', triage_level: 'none', matched_signs: [], escalation_id: null, extracted_json: null },
+    ],
+  },
 }
 
 describe('loadPatientDetail', () => {

@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useLatestOnly } from './latest-only'
 import { useLiveChanges, type LiveChange, type LiveStatus } from './live-changes'
 import { getAuthedSupabase } from './supabase'
 
@@ -104,11 +105,17 @@ export function useEscalationAlerts(enabled: boolean): {
   const [toasts, setToasts] = useState<EscalationToast[]>([])
   const [muted, setMuted] = useState(readMuted)
 
+  const begin = useLatestOnly()
   const refreshCount = useCallback(() => {
+    const isLatest = begin()
     countOpen()
-      .then(setOpenCount)
-      .catch(() => setOpenCount(null))
-  }, [])
+      .then((count) => {
+        if (isLatest()) setOpenCount(count)
+      })
+      .catch(() => {
+        if (isLatest()) setOpenCount(null)
+      })
+  }, [begin])
 
   useEffect(() => {
     if (enabled) refreshCount()

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useChangedFlash } from '../lib/changed-flash'
 import { REGISTRY_UI, ZONE_NAMES } from '../lib/labels'
+import { useLatestOnly } from '../lib/latest-only'
 import { ZONE_CLASS } from '../lib/zone-style'
 import { ZoneIcon } from './Zone'
 import { useLiveAssessments } from '../lib/live-changes'
@@ -76,17 +77,23 @@ export function RegistryOverview() {
   const previous = useRef<DistrictSummary[] | null>(null)
   const [flashing, flash] = useChangedFlash()
 
+  const begin = useLatestOnly()
+
   const load = useCallback(() => {
+    const isLatest = begin()
     getAuthedSupabase()
       .then(loadDistricts)
       .then((next) => {
+        if (!isLatest()) return
         if (previous.current !== null) flash(changedDistricts(previous.current, next))
         previous.current = next
         setDistricts(next)
         setError(null)
       })
-      .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : String(caught)))
-  }, [flash])
+      .catch((caught: unknown) => {
+        if (isLatest()) setError(caught instanceof Error ? caught.message : String(caught))
+      })
+  }, [flash, begin])
 
   useEffect(() => {
     load()

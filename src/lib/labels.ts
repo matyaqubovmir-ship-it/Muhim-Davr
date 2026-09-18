@@ -430,6 +430,7 @@ export const PATIENT_PAGE_UI = {
   telegramTitle: 'Bemorning Telegram xabarlari',
   noReports: 'Bemor hali xabar yubormagan.',
   escalated: 'Yo‘llanma ochildi',
+  unprocessed: 'Qayta ishlanmagan — xavf belgilari tekshirilmagan, o‘qing',
 } as const
 
 /** How the patient channel triaged each message, for the clinician reading it. */
@@ -484,7 +485,7 @@ export const QUEUE_UI = {
   loadFailed: 'Navbatni yuklab bo‘lmadi.',
   patientWords: 'Bemorning o‘z so‘zlari',
   code: 'Kod',
-  truncated: 'Faqat eng so‘nggi 50 tasi ko‘rsatildi.',
+  truncated: 'Hammasi sig‘madi: har holatdan 100 tadan ko‘rsatildi, eng uzoq kutayotgan ochiqlar birinchi. Yuqoridagi sonlar — to‘liq.',
   patientPage: 'Bemor sahifasi',
 
   acknowledge: 'Qabul qilish',

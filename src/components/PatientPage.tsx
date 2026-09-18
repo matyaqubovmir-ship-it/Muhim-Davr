@@ -17,6 +17,7 @@ import {
   type AssessmentPoint,
   type PatientDetail,
 } from '../lib/patient-detail'
+import { useLatestOnly } from '../lib/latest-only'
 import { formatDay } from '../lib/registry'
 import type { RiskZone } from '../lib/risk'
 import { pathFor, readPatientOrigin } from '../lib/routes'
@@ -261,7 +262,13 @@ function TelegramFeed({ detail }: { detail: PatientDetail }) {
         <li key={r.id} className="rounded-md border border-border bg-surface p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-text-muted">{formatMoment(r.createdAt)}</span>
+            {!r.processed ? (
+              <span className="rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-900 ring-1 ring-amber-300">
+                {PATIENT_PAGE_UI.unprocessed}
+              </span>
+            ) : null}
             <span
+              hidden={!r.processed}
               className={[
                 'rounded px-1.5 py-0.5 font-semibold',
                 r.triageLevel === 'immediate'
@@ -299,15 +306,23 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
   // history entry; absent when the page was opened from a pasted link.
   const origin = readPatientOrigin(window.history.state)
 
+  const begin = useLatestOnly()
+
   const load = useCallback(() => {
+    // Moving from one woman to the next must never show the first one's
+    // history under the second one's name.
+    const isLatest = begin()
     getAuthedSupabase()
       .then((client) => loadPatientDetail(client, pregnancyId))
       .then((next) => {
+        if (!isLatest()) return
         setDetail(next)
         setError(null)
       })
-      .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : String(caught)))
-  }, [pregnancyId])
+      .catch((caught: unknown) => {
+        if (isLatest()) setError(caught instanceof Error ? caught.message : String(caught))
+      })
+  }, [pregnancyId, begin])
 
   useEffect(() => {
     load()

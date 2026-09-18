@@ -62,6 +62,12 @@ export interface PatientReportEntry {
   createdAt: Date
   messageText: string
   triageLevel: 'immediate' | 'prompt' | 'none'
+  /**
+   * False when extraction failed and nobody — no model, no rule — read it for
+   * danger signs. Its triage_level is 'none' then, which must not be shown as
+   * "no sign found".
+   */
+  processed: boolean
   matchedSigns: string[]
   escalationId: string | null
 }
@@ -230,7 +236,7 @@ export async function loadPatientDetail(
     client.from('patient_channels').select('id', { count: 'exact', head: true }).eq('pregnancy_id', pregnancyId),
     client
       .from('patient_reports')
-      .select('id, created_at, message_text, triage_level, matched_signs, escalation_id')
+      .select('id, created_at, message_text, triage_level, matched_signs, escalation_id, extracted_json')
       .eq('pregnancy_id', pregnancyId)
       .order('created_at', { ascending: false }),
   ])
@@ -290,6 +296,7 @@ export async function loadPatientDetail(
       createdAt: toDate(r.created_at) ?? new Date(NaN),
       messageText: String(r.message_text),
       triageLevel: r.triage_level === 'immediate' || r.triage_level === 'prompt' ? r.triage_level : 'none',
+      processed: r.extracted_json !== null && r.extracted_json !== undefined,
       matchedSigns: strings(r.matched_signs),
       escalationId: typeof r.escalation_id === 'string' ? r.escalation_id : null,
     })),

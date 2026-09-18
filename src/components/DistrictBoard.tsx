@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useChangedFlash } from '../lib/changed-flash'
 import { REGISTRY_UI, ZONE_NAMES } from '../lib/labels'
+import { useLatestOnly } from '../lib/latest-only'
 import { useLiveAssessments } from '../lib/live-changes'
 import {
   ZONE_ORDER,
@@ -143,17 +144,23 @@ export function DistrictBoard({ district }: { district: string }) {
   const previous = useRef<RegistryPatient[] | null>(null)
   const [flashing, flash] = useChangedFlash()
 
+  const begin = useLatestOnly()
+
   const load = useCallback(() => {
+    const isLatest = begin()
     getAuthedSupabase()
       .then((client) => loadDistrictPatients(client, district))
       .then((next) => {
+        if (!isLatest()) return
         if (previous.current !== null) flash(changedPatients(previous.current, next))
         previous.current = next
         setPatients(next)
         setError(null)
       })
-      .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : String(caught)))
-  }, [district, flash])
+      .catch((caught: unknown) => {
+        if (isLatest()) setError(caught instanceof Error ? caught.message : String(caught))
+      })
+  }, [district, flash, begin])
 
   useEffect(() => {
     load()
