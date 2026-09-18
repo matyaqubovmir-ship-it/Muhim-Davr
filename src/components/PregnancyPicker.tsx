@@ -84,7 +84,7 @@ export function PregnancyPicker({
     return (
       <div className="py-2">
         <div className="mb-1.5 text-sm leading-snug text-slate-800">{PICKER_UI.label}</div>
-        <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-slate-300 bg-surface px-3 py-2">
+        <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border-input bg-surface px-3 py-2">
           <div>
             <div className="text-base font-semibold text-text-primary">{value.fullName}</div>
             <div className="text-xs text-slate-600">{describe(value)}</div>
@@ -95,7 +95,7 @@ export function PregnancyPicker({
               onChange(null)
               requestAnimationFrame(() => inputRef.current?.focus())
             }}
-            className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-sm font-semibold text-slate-700 hover:border-slate-500"
+            className="shrink-0 rounded-md border border-border-input px-2.5 py-1 text-sm font-semibold text-slate-700 hover:border-slate-500"
           >
             {PICKER_UI.change}
           </button>
@@ -146,7 +146,7 @@ export function PregnancyPicker({
         }}
         className={[
           'min-h-11 w-full rounded-md border bg-surface px-3 text-base text-text-primary focus:border-brand focus:outline-none',
-          invalid ? 'border-red-400' : 'border-slate-300',
+          invalid ? 'border-red-400' : 'border-border-input',
         ].join(' ')}
       />
 

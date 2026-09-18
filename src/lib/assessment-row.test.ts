@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { differsFromExtraction, toAssessmentRow, toFieldValues } from './assessment-row'
+import {
+  differsFromExtraction,
+  invalidNumberFields,
+  parseDecimal,
+  toAssessmentRow,
+  toFieldValues,
+  toScoringInput,
+} from './assessment-row'
 import type { FormFieldName } from './form-fields'
 import type { RiskResult } from './risk'
 
@@ -19,6 +26,35 @@ const RESULT: RiskResult = {
   rulesVersion: '1.0.0',
   missingCriticalFields: [],
 }
+
+describe('parseDecimal — what a midwife types', () => {
+  it('reads a decimal comma the same as a decimal point', () => {
+    expect(parseDecimal('10,5')).toBe(10.5)
+    expect(parseDecimal('10.5')).toBe(10.5)
+    expect(parseDecimal(' 110 ')).toBe(110)
+    expect(parseDecimal(',5')).toBe(0.5)
+  })
+
+  it('keeps blank as not recorded', () => {
+    expect(parseDecimal('')).toBeNull()
+    expect(parseDecimal('   ')).toBeNull()
+    expect(parseDecimal(undefined)).toBeNull()
+  })
+
+  it('calls anything else invalid instead of guessing', () => {
+    for (const raw of ['140/90', '10,5,1', '1.2.3', 'abc', '12a', '-', 'Infinity', '1e5']) {
+      expect(parseDecimal(raw)).toBe('invalid')
+    }
+  })
+
+  it('names the fields that stop a save', () => {
+    expect(invalidNumberFields({ bp_systolic: '140/90', hemoglobin: '10,5', age: '' })).toEqual(['bp_systolic'])
+  })
+
+  it('scores a comma reading as the number it is, not as missing', () => {
+    expect(toScoringInput({ hemoglobin: '95,5' }, {}).hemoglobin).toBe(95.5)
+  })
+})
 
 describe('toFieldValues', () => {
   it('turns blank number inputs into null, never 0', () => {

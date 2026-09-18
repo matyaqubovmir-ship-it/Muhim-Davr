@@ -164,7 +164,7 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
     { mode: 'ga', label: NEW_PATIENT_UI.lmpModeGa },
     { mode: 'unknown', label: NEW_PATIENT_UI.lmpModeUnknown },
   ]
-  const border = (field: NewPatientField) => (errors[field] ? 'border-red-400' : 'border-slate-300')
+  const border = (field: NewPatientField) => (errors[field] ? 'border-red-400' : 'border-border-input')
 
   return (
     <form onSubmit={submit} className="pb-12" noValidate>
@@ -218,7 +218,7 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
           value={form.village}
           onChange={(e) => set('village', e.target.value)}
           autoComplete="off"
-          className={`${INPUT} border-slate-300`}
+          className={`${INPUT} border-border-input`}
         />
       </Field>
 
@@ -242,7 +242,7 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
               key={mode}
               className={[
                 'flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm',
-                form.lmpMode === mode ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-surface text-slate-800',
+                form.lmpMode === mode ? 'border-brand bg-brand text-white' : 'border-border-input bg-surface text-slate-800',
               ].join(' ')}
             >
               <input

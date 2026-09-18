@@ -8,6 +8,8 @@ import {
 import { FIELD_LABELS, FIELD_UNITS, GROUP_TITLES, PICKER_UI, UI } from '../lib/labels'
 import {
   differsFromExtraction,
+  invalidNumberFields,
+  parseDecimal,
   toAssessmentRow,
   toFieldValues,
   toScoringInput,
@@ -123,6 +125,13 @@ export function EntryForm({
       return
     }
 
+    // A box that is not a number is not "not measured". Saving it as null would
+    // score her on less than was written down.
+    if (invalidNumberFields(numbers).length > 0) {
+      setError(UI.numbersInvalid)
+      return
+    }
+
     // Split the two observations the scorer does not read back out, so they are
     // stored on the row without being handed to scoreAssessment.
     const scoringBooleans: BooleanFormValues = {}
@@ -195,10 +204,10 @@ export function EntryForm({
       // otherwise estimated from this visit's gestational age. The screen shows
       // it from the same anchor it is stored from, so the dates she sees are the
       // dates the patient is reminded of.
-      const gaRaw = numbers.gestational_age_weeks?.trim() ?? ''
+      const ga = parseDecimal(numbers.gestational_age_weeks)
       const lmpDate = scheduleAnchor(
         await readRecordedLmp(client, savedPregnancyId),
-        gaRaw === '' ? null : Number(gaRaw),
+        typeof ga === 'number' ? ga : null,
         today,
       )
       const schedule = await saveSchedule(client, {
@@ -224,6 +233,8 @@ export function EntryForm({
     }
   }
 
+  const invalidNumbers = new Set(invalidNumberFields(numbers))
+
   return (
     <form onSubmit={handleSubmit} className="pb-24">
       {/*
@@ -243,7 +254,7 @@ export function EntryForm({
           rows={4}
           value={narrative}
           onChange={(event) => setNarrative(event.target.value)}
-          className="w-full resize-y rounded-md border border-slate-300 bg-surface p-3 text-base text-text-primary focus:border-brand focus:outline-none"
+          className="w-full resize-y rounded-md border border-border-input bg-surface p-3 text-base text-text-primary focus:border-brand focus:outline-none"
         />
         <button
           type="button"
@@ -292,6 +303,7 @@ export function EntryForm({
                 value={numbers[field.name] ?? ''}
                 onChange={(value) => setNumber(field.name, value)}
                 fromAi={aiFields.has(field.name)}
+                invalid={invalidNumbers.has(field.name)}
               />
             ) : (
               <TriState

@@ -30,6 +30,7 @@ describe('index.css tokens agree with the TypeScript copies', () => {
     expect(token('bg')).toBe(TOKENS.bg.toUpperCase())
     expect(token('surface')).toBe(TOKENS.surface.toUpperCase())
     expect(token('border')).toBe(TOKENS.border.toUpperCase())
+    expect(token('border-input')).toBe(TOKENS.borderInput.toUpperCase())
     expect(token('text-primary')).toBe(TOKENS.textPrimary.toUpperCase())
     expect(token('text-muted')).toBe(TOKENS.textMuted.toUpperCase())
     expect(token('brand')).toBe(TOKENS.brand.toUpperCase())
@@ -74,6 +75,11 @@ describe('the neutral pairings clear WCAG AA', () => {
       expect(contrastRatio(TOKENS.textPrimary, background)).toBeGreaterThanOrEqual(4.5)
       expect(contrastRatio(TOKENS.textMuted, background)).toBeGreaterThanOrEqual(4.5)
     }
+  })
+
+  it('the edge of an input or control on surface and background ≥ 3', () => {
+    expect(contrastRatio(TOKENS.borderInput, TOKENS.surface)).toBeGreaterThanOrEqual(3)
+    expect(contrastRatio(TOKENS.borderInput, TOKENS.bg)).toBeGreaterThanOrEqual(3)
   })
 
   it('white on brand buttons, and brand links on surface ≥ 4.5', () => {

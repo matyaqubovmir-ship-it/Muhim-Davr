@@ -42,6 +42,8 @@ export const UI = {
 
   saveFailed: 'Saqlashda xatolik yuz berdi. Qayd saqlanmadi.',
   authFailed: 'Tizimga kirib bo‘lmadi. Qayd saqlanmadi.',
+  numberInvalid: 'Son emas. Masalan: 110 yoki 10,5',
+  numbersInvalid: 'Ba’zi maydonlarda son noto‘g‘ri yozilgan. Belgilangan maydonlarni tuzating — qayd saqlanmadi.',
 
   narrativeLabel: 'Bemor haqida o‘z so‘zlaringiz bilan yozing',
   analyse: 'Tahlil qilish',

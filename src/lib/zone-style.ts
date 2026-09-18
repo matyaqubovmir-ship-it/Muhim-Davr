@@ -22,6 +22,8 @@ export const TOKENS = {
   bg: '#F7F9FB',
   surface: '#FFFFFF',
   border: '#E3E8EF',
+  /** The edge of a box you type into or a control you press: ≥ 3:1 (WCAG 1.4.11). `border` is for dividers only. */
+  borderInput: '#7C8799',
   textPrimary: '#0F172A',
   textMuted: '#64748B',
   brand: '#2563EB',

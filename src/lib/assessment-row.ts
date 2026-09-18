@@ -28,15 +28,35 @@ export type NumericFormValues = Partial<Record<FormFieldName, string>>
 export type BooleanFormValues = Partial<Record<FormFieldName, boolean | null>>
 
 /**
- * Empty input means not recorded, which is null — never 0 and never false.
- * A blank box and a zero are different clinical facts.
+ * Reads a typed number. "10,5" and "10.5" are the same reading — Uzbek writes a
+ * decimal comma, and a midwife should not have to know which one a browser
+ * wants. Blank is null; anything else that is not a number is 'invalid', which
+ * the form refuses to save rather than quietly storing as not recorded.
  */
-function toNumberOrNull(raw: string | undefined): number | null {
+export function parseDecimal(raw: string | undefined): number | null | 'invalid' {
   if (raw === undefined) return null
   const trimmed = raw.trim()
   if (trimmed === '') return null
-  const parsed = Number(trimmed)
-  return Number.isFinite(parsed) ? parsed : null
+  if (!/^[+-]?(\d+([.,]\d*)?|[.,]\d+)$/.test(trimmed)) return 'invalid'
+  const parsed = Number(trimmed.replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : 'invalid'
+}
+
+/** Fields whose box holds something that is not a number. */
+export function invalidNumberFields(numbers: NumericFormValues): FormFieldName[] {
+  return (Object.entries(numbers) as [FormFieldName, string | undefined][])
+    .filter(([, raw]) => parseDecimal(raw) === 'invalid')
+    .map(([field]) => field)
+}
+
+/**
+ * Empty input means not recorded, which is null — never 0 and never false.
+ * A blank box and a zero are different clinical facts. The form does not save
+ * while any box is invalid, so null here is only ever a blank.
+ */
+function toNumberOrNull(raw: string | undefined): number | null {
+  const parsed = parseDecimal(raw)
+  return parsed === 'invalid' ? null : parsed
 }
 
 /** Builds the AssessmentInput that scoreAssessment reads. */
