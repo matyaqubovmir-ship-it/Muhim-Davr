@@ -268,6 +268,19 @@ describe('upcomingVisitRows — what gets stored for the reminders', () => {
       today,
     )
     expect(rows.every((row) => row.target_date > '2026-07-01')).toBe(true)
+  })
+
+  it('a visit a few days early is that contact: it is not stored to be reminded of again', () => {
+    // 1 July is five days before the 26-week contact (6 July).
+    const today = new Date(2026, 6, 1)
+    const rows = upcomingVisitRows(generateSchedule({ lmpDate: LMP, currentZone: 'sariq', today }), today)
+    expect(rows[0]).toEqual({ target_week: 28, target_date: '2026-07-20' })
+  })
+
+  it('a visit more than a week early leaves the next contact planned', () => {
+    // 20 June is sixteen days before the 26-week contact.
+    const today = new Date(2026, 5, 20)
+    const rows = upcomingVisitRows(generateSchedule({ lmpDate: LMP, currentZone: 'yashil', today }), today)
     expect(rows[0]).toEqual({ target_week: 26, target_date: '2026-07-06' })
   })
 

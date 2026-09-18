@@ -99,7 +99,8 @@ export function VisitSchedule({
                 ].join(' ')}
               >
                 <span>{formatISODate(visit.targetDate)}</span>
-                <span className="text-xs">{VISIT_STATUS_LABELS[visit.status]}</span>
+                <span className="text-xs">{/* The calendar knows the date passed, not whether she came: never "missed". */}
+                  {missed ? UI.pastContact : VISIT_STATUS_LABELS[visit.status]}</span>
               </div>
             </li>
           )

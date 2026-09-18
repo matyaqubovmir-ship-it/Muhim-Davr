@@ -224,13 +224,31 @@ export function upcomingVisitRows(
   today: Date,
 ): PlannedVisitRow[] {
   const now = startOfDay(today).getTime()
-  return schedule
-    .filter((visit) => startOfDay(visit.targetDate).getTime() > now)
-    .map((visit) => ({
-      target_week: visit.targetWeek,
-      target_date: formatISODate(visit.targetDate),
-    }))
+  const future = schedule.filter((visit) => startOfDay(visit.targetDate).getTime() > now)
+
+  // A visit a few days early is that contact, not an extra one. Without this,
+  // seeing her on Wednesday for a Friday contact left Friday planned: she was
+  // reminded of a visit she had already had, then flagged overdue for missing
+  // it. When a contact falls on today (including qizil's pulled-forward one),
+  // today's visit is that contact and nothing further is consumed.
+  const hasToday = schedule.some((visit) => startOfDay(visit.targetDate).getTime() === now)
+  const next = future[0]
+  const fulfilledEarly =
+    !hasToday &&
+    next !== undefined &&
+    startOfDay(next.targetDate).getTime() - now <= FULFILS_WITHIN_DAYS * 86_400_000
+
+  return (fulfilledEarly ? future.slice(1) : future).map((visit) => ({
+    target_week: visit.targetWeek,
+    target_date: formatISODate(visit.targetDate),
+  }))
 }
+
+/**
+ * How early a visit can be and still count as the next contact. WHO contacts
+ * are at least two weeks apart from week 34, so a week cannot swallow two.
+ */
+export const FULFILS_WITHIN_DAYS = 7
 
 /**
  * Estimates the LMP from a visit date and a gestational age in weeks.

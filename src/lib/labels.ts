@@ -61,6 +61,7 @@ export const UI = {
   scheduleNeedsGa:
     'Jadvalni tuzish uchun homiladorlik muddati (hafta) kiritilishi yoki oxirgi hayz sanasi qayd etilgan bo‘lishi kerak.',
   scheduleBasis: 'WHO 2016 — sakkiz marta ko‘rik modeli',
+  pastContact: 'O‘tgan sana',
 
   protocolTitle: 'WHO protokoli bo‘yicha eslatma — shifokor tasdiqlashi kerak',
   protocolStaticNote:
