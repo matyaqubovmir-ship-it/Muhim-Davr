@@ -52,6 +52,16 @@ export type Staleness =
   | { kind: 'never_seen' }
   /** No planned contact on record, and a long time since she was seen. */
   | { kind: 'not_seen'; days: number }
+  /**
+   * At term with nothing planned. The WHO table ends at week 40, so a woman
+   * seen at 39 weeks or later can have no contact left to plan — and without
+   * this she would drop out of every list until the six-week rule caught her,
+   * well past 44 weeks.
+   */
+  | { kind: 'term_no_plan'; week: number }
+
+/** From this week, an active pregnancy with nothing planned is flagged. */
+export const TERM_WEEK = 39
 
 /**
  * With no stored schedule to go by, how long is too long unseen. Six weeks is
@@ -120,12 +130,21 @@ export function staleness(
   lastVisit: Date | null,
   earliestPlannedVisit: Date | null,
   today: Date,
+  gestationalWeek: number | null = null,
 ): Staleness | null {
-  if (earliestPlannedVisit !== null && daysBetween(earliestPlannedVisit, today) > 0) {
+  // Overdue only if nobody has seen her since that date. A planned contact on
+  // or before her last visit is one the schedule write did not close (no
+  // anchor, or a failed write) — she came; she is not overdue.
+  if (
+    earliestPlannedVisit !== null &&
+    daysBetween(earliestPlannedVisit, today) > 0 &&
+    (lastVisit === null || daysBetween(lastVisit, earliestPlannedVisit) > 0)
+  ) {
     return { kind: 'overdue', since: earliestPlannedVisit }
   }
   if (lastVisit === null) return { kind: 'never_seen' }
-  if (earliestPlannedVisit === null) {
+  if (earliestPlannedVisit === null || daysBetween(earliestPlannedVisit, today) > 0) {
+    if (gestationalWeek !== null && gestationalWeek >= TERM_WEEK) return { kind: 'term_no_plan', week: gestationalWeek }
     const days = daysBetween(lastVisit, today)
     if (days > NOT_SEEN_AFTER_DAYS) return { kind: 'not_seen', days }
   }
@@ -141,6 +160,8 @@ export function stalenessText(staleness: Staleness): string {
       return REGISTRY_UI.neverSeen
     case 'not_seen':
       return `${staleness.days} ${REGISTRY_UI.notSeenDays}`
+    case 'term_no_plan':
+      return REGISTRY_UI.termNoPlan(staleness.week)
   }
 }
 
@@ -165,16 +186,17 @@ export function toRegistryPatient(row: RegistryRow, today: Date): RegistryPatien
   const lmp = date(row.lmp_date)
   const gaOn = date(row.latest_ga_on)
   const lastVisit = date(row.last_clinic_visit_date)
+  const gestationalWeek = currentGestationalWeek(lmp, row.latest_ga_weeks, gaOn, today)
   return {
     pregnancyId: row.pregnancy_id,
     fullName: row.full_name,
     district: row.district,
     village: row.village,
     zone: row.risk_zone,
-    gestationalWeek: currentGestationalWeek(lmp, row.latest_ga_weeks, gaOn, today),
+    gestationalWeek,
     dueDate: dueDate(date(row.edd_date), lmp, row.latest_ga_weeks, gaOn),
     lastVisit,
-    staleness: staleness(lastVisit, date(row.earliest_planned_visit), today),
+    staleness: staleness(lastVisit, date(row.earliest_planned_visit), today, gestationalWeek),
   }
 }
 

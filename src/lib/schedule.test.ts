@@ -4,6 +4,7 @@ import {
   contactWeeksForZone,
   findNextVisit,
   formatISODate,
+  fulfilledEarly,
   generateSchedule,
   intervalFromPrevious,
   parseISODate,
@@ -115,38 +116,43 @@ describe('sariq — an extra contact midway between each pair from week 26', () 
   })
 })
 
-describe('qizil — the next contact is today', () => {
-  // 20 July 2026 is week 28 of this pregnancy: past the week-26 contact,
-  // before the week-30 one.
+describe('qizil — seen today, again within a week, never less often than sariq', () => {
+  // 20 July 2026 is exactly week 28 of this pregnancy: a sariq (and so qizil)
+  // contact week.
   const TODAY = new Date(2026, 6, 20)
   const schedule = generateSchedule({
     lmpDate: LMP,
     currentZone: 'qizil',
     today: TODAY,
   })
+  const at = (week: number) =>
+    formatISODate(schedule.find((v) => v.targetWeek === week && !v.followUp)!.targetDate)
 
-  it('moves the next due contact to today', () => {
+  it('has a contact today', () => {
     const next = findNextVisit(schedule, TODAY)
     expect(next).not.toBeNull()
     expect(formatISODate(next!.targetDate)).toBe('2026-07-20')
     expect(next!.status).toBe('rejalashtirilgan')
   })
 
-  it('pulls forward the contact that was next, keeping its number and week', () => {
-    // The week-30 contact is the one that was due next, so it is the one moved.
-    const moved = schedule.find((v) => v.targetWeek === 30)
-    expect(moved).toBeDefined()
-    expect(formatISODate(moved!.targetDate)).toBe('2026-07-20')
+  it('adds a check-up one week later, because the next contact is two weeks away', () => {
+    const followUp = schedule.find((v) => v.followUp)
+    expect(followUp).toBeDefined()
+    expect(formatISODate(followUp!.targetDate)).toBe('2026-07-27')
+    expect(followUp!.targetWeek).toBe(29)
   })
 
-  it('still shows the rest of the schedule at its original dates', () => {
-    expect(schedule).toHaveLength(8)
-    const at = (week: number) =>
-      formatISODate(schedule.find((v) => v.targetWeek === week)!.targetDate)
+  it('keeps the later contacts at their dates, on the sariq weeks', () => {
+    expect(schedule.filter((v) => !v.followUp).map((v) => v.targetWeek)).toEqual(contactWeeksForZone('sariq'))
+    expect(at(30)).toBe('2026-08-03')
     expect(at(34)).toBe('2026-08-31')
-    expect(at(36)).toBe('2026-09-14')
-    expect(at(38)).toBe('2026-09-28')
     expect(at(40)).toBe('2026-10-12')
+  })
+
+  it('numbers the contacts in date order', () => {
+    expect(schedule.map((v) => v.contactNumber)).toEqual(schedule.map((_, i) => i + 1))
+    const dates = schedule.map((v) => v.targetDate.getTime())
+    expect([...dates].sort((a, b) => a - b)).toEqual(dates)
   })
 
   it('leaves past contacts marked as missed', () => {
@@ -156,8 +162,31 @@ describe('qizil — the next contact is today', () => {
     expect(week26.status).toBe("o'tkazib yuborilgan")
   })
 
-  it('does not add or remove contacts', () => {
-    expect(schedule.map((v) => v.targetWeek)).toEqual([...WHO_BASE_CONTACT_WEEKS])
+  it('pulls the next contact forward to today when today falls between contacts', () => {
+    const today = new Date(2026, 6, 22) // week 28, day 2
+    const s2 = generateSchedule({ lmpDate: LMP, currentZone: 'qizil', today })
+    const moved = s2.find((v) => v.targetWeek === 30 && !v.followUp)!
+    expect(formatISODate(moved.targetDate)).toBe('2026-07-22')
+    expect(formatISODate(s2.find((v) => v.followUp)!.targetDate)).toBe('2026-07-29')
+  })
+
+  it('is never left weeks without a contact: red at week 21 is seen again within 7 days', () => {
+    const today = new Date(2026, 5, 1) // week 21
+    const rows = upcomingVisitRows(generateSchedule({ lmpDate: LMP, currentZone: 'qizil', today }), today)
+    expect(rows[0]).toEqual({ target_week: 22, target_date: '2026-06-08' })
+  })
+
+  it('still gets a check-up when red past week 40, with no WHO contact left', () => {
+    const today = new Date(2026, 9, 19) // week 41
+    const rows = upcomingVisitRows(generateSchedule({ lmpDate: LMP, currentZone: 'qizil', today }), today)
+    expect(rows).toEqual([{ target_week: 42, target_date: '2026-10-26' }])
+  })
+
+  it('adds no check-up when a contact already falls within ten days', () => {
+    // 14 September is the week-36 contact itself; week 37 is seven days on.
+    const today = new Date(2026, 8, 14)
+    const s2 = generateSchedule({ lmpDate: LMP, currentZone: 'qizil', today })
+    expect(s2.some((v) => v.followUp)).toBe(false)
   })
 })
 
@@ -186,9 +215,12 @@ describe('status', () => {
 })
 
 describe('contactWeeksForZone', () => {
-  it('leaves yashil and qizil on the base weeks', () => {
+  it('leaves yashil on the base weeks', () => {
     expect(contactWeeksForZone('yashil')).toEqual([...WHO_BASE_CONTACT_WEEKS])
-    expect(contactWeeksForZone('qizil')).toEqual([...WHO_BASE_CONTACT_WEEKS])
+  })
+
+  it('never sees a qizil woman less often than a sariq one', () => {
+    expect(contactWeeksForZone('qizil')).toEqual(contactWeeksForZone('sariq'))
   })
 
   it('returns sorted, unique weeks for sariq', () => {
@@ -254,11 +286,32 @@ describe('upcomingVisitRows — what gets stored for the reminders', () => {
     ])
   })
 
-  it('does not store the qizil contact pulled to today — the visit being saved is that contact', () => {
+  it('does not store the qizil contact pulled to today — the visit being saved is that contact — but stores the check-up', () => {
     const today = new Date(2026, 7, 20)
     const schedule = generateSchedule({ lmpDate: LMP, currentZone: 'qizil', today })
     expect(schedule.some((visit) => formatISODate(visit.targetDate) === '2026-08-20')).toBe(true)
-    expect(upcomingVisitRows(schedule, today).map((row) => row.target_week)).toEqual([36, 38, 40])
+    expect(upcomingVisitRows(schedule, today).map((row) => row.target_week)).toEqual([33, 35, 36, 37, 38, 39, 40])
+  })
+
+  it('a late visit is late for the contact she missed, not early for the next (weekly sariq contacts)', () => {
+    // The week-34 contact was Monday 31 August; she comes on Tuesday 1 September.
+    const today = new Date(2026, 8, 1)
+    const schedule = generateSchedule({ lmpDate: LMP, currentZone: 'sariq', today })
+    expect(fulfilledEarly(schedule, today)).toBeNull()
+    expect(upcomingVisitRows(schedule, today)[0]).toEqual({ target_week: 35, target_date: '2026-09-07' })
+  })
+
+  it('a visit exactly between two contacts consumes neither', () => {
+    // 13 July is week 27: a week after the 26-week contact, a week before the 28-week one.
+    const today = new Date(2026, 6, 13)
+    const rows = upcomingVisitRows(generateSchedule({ lmpDate: LMP, currentZone: 'sariq', today }), today)
+    expect(rows[0]).toEqual({ target_week: 28, target_date: '2026-07-20' })
+  })
+
+  it('yashil: a missed week-36 contact made up at week 37 leaves week 38 planned', () => {
+    const today = new Date(2026, 8, 21)
+    const rows = upcomingVisitRows(generateSchedule({ lmpDate: LMP, currentZone: 'yashil', today }), today)
+    expect(rows[0]).toEqual({ target_week: 38, target_date: '2026-09-28' })
   })
 
   it('never stores a past contact, so nothing is ever recorded as missed', () => {

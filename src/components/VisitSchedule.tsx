@@ -1,8 +1,8 @@
-import { SCHEDULE_ZONE_NOTES, UI, VISIT_STATUS_LABELS } from '../lib/labels'
+import { SCHEDULE_ZONE_NOTES, UI, VISITS_UI, VISIT_STATUS_LABELS } from '../lib/labels'
 import { ZONE_CLASS } from '../lib/zone-style'
 import {
-  findNextVisit,
   formatISODate,
+  fulfilledEarly,
   generateSchedule,
   intervalFromPrevious,
   startOfDay,
@@ -35,8 +35,11 @@ export function VisitSchedule({
   }
 
   const schedule = generateSchedule({ lmpDate, currentZone: zone, today })
-  const next = findNextVisit(schedule, today)
   const now = startOfDay(today)
+  // The contact today's visit stands in for is done, not next: it is not stored
+  // and she will not be reminded of it (upcomingVisitRows).
+  const covered = fulfilledEarly(schedule, today)
+  const next = schedule.find((visit) => visit !== covered && visit.targetDate.getTime() >= now.getTime()) ?? null
 
   return (
     <section className="mt-6">
@@ -53,6 +56,7 @@ export function VisitSchedule({
           const isToday = visit.targetDate.getTime() === now.getTime()
           const interval = intervalFromPrevious(schedule, index)
           const missed = visit.status === "o'tkazib yuborilgan"
+          const isCovered = visit === covered
 
           return (
             <li
@@ -75,6 +79,12 @@ export function VisitSchedule({
                 >
                   {visit.contactNumber}. {visit.targetWeek}-{UI.week}
                 </span>
+
+                {visit.followUp ? (
+                  <span className="rounded bg-zone-qizil-soft px-1.5 py-0.5 text-[11px] font-semibold text-zone-qizil">
+                    {VISITS_UI.followUp}
+                  </span>
+                ) : null}
 
                 {/* The zone-adjusted interval, visible per contact. */}
                 {interval !== null ? (
@@ -100,7 +110,7 @@ export function VisitSchedule({
               >
                 <span>{formatISODate(visit.targetDate)}</span>
                 <span className="text-xs">{/* The calendar knows the date passed, not whether she came: never "missed". */}
-                  {missed ? UI.pastContact : VISIT_STATUS_LABELS[visit.status]}</span>
+                  {isCovered ? VISITS_UI.fulfilledToday : missed ? UI.pastContact : VISIT_STATUS_LABELS[visit.status]}</span>
               </div>
             </li>
           )

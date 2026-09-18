@@ -23,6 +23,8 @@ export interface ScheduledVisit {
   targetWeek: number
   targetDate: Date
   status: VisitStatus
+  /** A qizil check-up a week after a red visit, not one of the WHO contacts. */
+  followUp?: boolean
 }
 
 export interface ScheduleInput {
@@ -80,14 +82,15 @@ function sameDay(a: Date, b: Date): boolean {
  *          28, 32, 35, 37, 39. Before 26 the interval is already long and the
  *          yield of an extra visit is low, so the additions are concentrated
  *          where deterioration actually happens.
- * qizil  — the eight contacts; the urgency is expressed in the dates, not the
- *          week list. See generateSchedule.
+ * qizil  — the same weeks as sariq (a red woman is never seen less often than
+ *          a yellow one), with the urgency expressed in the dates as well:
+ *          see generateSchedule.
  */
 export function contactWeeksForZone(zone: RiskZoneForSchedule): number[] {
   // Widened to number[]: WHO_BASE_CONTACT_WEEKS is `as const`, so a spread of it
   // keeps the literal union and will not accept a computed midpoint.
   const base: number[] = [...WHO_BASE_CONTACT_WEEKS]
-  if (zone !== 'sariq') return base
+  if (zone === 'yashil') return base
 
   const weeks: number[] = [...base]
   for (let i = 0; i < base.length - 1; i++) {
@@ -144,10 +147,36 @@ export function generateSchedule({
         status: 'rejalashtirilgan',
       }
     }
+
+    // And she is seen again within a week. Without this, pulling the next
+    // contact to today left the one after it as her next date — at week 21
+    // that was week 28, seven weeks for a woman who is red today. The check-up
+    // visit is itself assessed, so a woman still red then gets another.
+    const followUpDate = addDays(now, QIZIL_FOLLOW_UP_DAYS)
+    const after = visits.find((visit) => visit.targetDate.getTime() > now.getTime())
+    if (after === undefined || after.targetDate.getTime() > addDays(now, QIZIL_FOLLOW_UP_WITHIN_DAYS).getTime()) {
+      const week = Math.floor((followUpDate.getTime() - anchor.getTime()) / (7 * 86_400_000))
+      visits.push({
+        contactNumber: 0,
+        targetWeek: Math.min(45, Math.max(1, week)),
+        targetDate: followUpDate,
+        status: 'rejalashtirilgan',
+        followUp: true,
+      })
+      visits.sort((a, b) => a.targetDate.getTime() - b.targetDate.getTime())
+      visits.forEach((visit, index) => {
+        visit.contactNumber = index + 1
+      })
+    }
   }
 
   return visits
 }
+
+/** A red visit is followed by a check-up this many days later... */
+export const QIZIL_FOLLOW_UP_DAYS = 7
+/** ...unless a contact already falls within this many days. */
+export const QIZIL_FOLLOW_UP_WITHIN_DAYS = 10
 
 /**
  * The contact to highlight: the first one not in the past. Returns null once
@@ -224,30 +253,42 @@ export function upcomingVisitRows(
   today: Date,
 ): PlannedVisitRow[] {
   const now = startOfDay(today).getTime()
-  const future = schedule.filter((visit) => startOfDay(visit.targetDate).getTime() > now)
-
-  // A visit a few days early is that contact, not an extra one. Without this,
-  // seeing her on Wednesday for a Friday contact left Friday planned: she was
-  // reminded of a visit she had already had, then flagged overdue for missing
-  // it. When a contact falls on today (including qizil's pulled-forward one),
-  // today's visit is that contact and nothing further is consumed.
-  const hasToday = schedule.some((visit) => startOfDay(visit.targetDate).getTime() === now)
-  const next = future[0]
-  const fulfilledEarly =
-    !hasToday &&
-    next !== undefined &&
-    startOfDay(next.targetDate).getTime() - now <= FULFILS_WITHIN_DAYS * 86_400_000
-
-  return (fulfilledEarly ? future.slice(1) : future).map((visit) => ({
-    target_week: visit.targetWeek,
-    target_date: formatISODate(visit.targetDate),
-  }))
+  const early = fulfilledEarly(schedule, today)
+  return schedule
+    .filter((visit) => startOfDay(visit.targetDate).getTime() > now && visit !== early)
+    .map((visit) => ({
+      target_week: visit.targetWeek,
+      target_date: formatISODate(visit.targetDate),
+    }))
 }
 
 /**
- * How early a visit can be and still count as the next contact. WHO contacts
- * are at least two weeks apart from week 34, so a week cannot swallow two.
+ * The contact a visit today stands in for, when it is a few days early for it.
+ *
+ * Seeing her on Wednesday for Friday's contact is Friday's contact: left
+ * planned, she would be reminded of a visit she had already had, then flagged
+ * overdue for missing it. So the next contact counts as done when it is at
+ * most FULFILS_WITHIN_DAYS away AND nearer than the contact before it.
+ *
+ * The second condition matters where contacts are close together. Weekly from
+ * week 34 in sariq, a woman who missed Monday's week-34 contact and comes on
+ * Tuesday is late for week 34, not early for week 35 — the week-35 contact
+ * stays. When a contact falls on today (including qizil's pulled-forward one),
+ * today's visit is that contact and nothing further is consumed.
  */
+export function fulfilledEarly(schedule: readonly ScheduledVisit[], today: Date): ScheduledVisit | null {
+  const now = startOfDay(today).getTime()
+  const day = (visit: ScheduledVisit) => startOfDay(visit.targetDate).getTime()
+  if (schedule.some((visit) => day(visit) === now)) return null
+  const next = schedule.filter((visit) => day(visit) > now).sort((a, b) => day(a) - day(b))[0]
+  if (next === undefined) return null
+  const previous = schedule.filter((visit) => day(visit) < now).sort((a, b) => day(b) - day(a))[0]
+  const toNext = day(next) - now
+  const sincePrevious = previous === undefined ? Number.POSITIVE_INFINITY : now - day(previous)
+  return toNext <= FULFILS_WITHIN_DAYS * 86_400_000 && toNext < sincePrevious ? next : null
+}
+
+/** How early a visit can be and still count as the next contact. */
 export const FULFILS_WITHIN_DAYS = 7
 
 /**

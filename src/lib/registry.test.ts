@@ -302,3 +302,21 @@ describe('stalenessText', () => {
     expect(stalenessText({ kind: 'not_seen', days: 50 })).toMatch(/^50 /)
   })
 })
+
+describe('staleness — audit fixes', () => {
+  const TODAY_A = new Date(2026, 8, 18)
+  const day = (m: number, dd: number) => new Date(2026, m - 1, dd)
+
+  it('is not overdue when she was seen on or after the planned date', () => {
+    // The schedule write did not close the 10 September row, but she came on the 12th.
+    expect(staleness(day(9, 12), day(9, 10), TODAY_A)).toBe(null)
+    expect(staleness(day(9, 10), day(9, 10), TODAY_A)).toBe(null)
+    expect(staleness(day(9, 9), day(9, 10), TODAY_A)).toEqual({ kind: 'overdue', since: day(9, 10) })
+  })
+
+  it('flags a woman at term with nothing planned instead of losing her', () => {
+    expect(staleness(day(9, 15), null, TODAY_A, 39)).toEqual({ kind: 'term_no_plan', week: 39 })
+    expect(staleness(day(9, 15), null, TODAY_A, 38)).toBe(null)
+    expect(staleness(day(9, 15), day(9, 25), TODAY_A, 40)).toBe(null)
+  })
+})
