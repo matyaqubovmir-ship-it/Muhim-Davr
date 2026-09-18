@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useChangedFlash } from '../lib/changed-flash'
-import { REGISTRY_UI, ZONE_COLORS, ZONE_NAMES } from '../lib/labels'
+import { REGISTRY_UI, ZONE_NAMES } from '../lib/labels'
+import { ZONE_CLASS } from '../lib/zone-style'
+import { ZoneIcon } from './Zone'
 import { useLiveAssessments } from '../lib/live-changes'
 import { ZONE_ORDER, changedDistricts, loadDistricts, type DistrictSummary } from '../lib/registry'
 import { pathFor } from '../lib/routes'
@@ -10,7 +12,7 @@ import { LiveBadge } from './LiveBadge'
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-lg border border-slate-200 bg-white p-4" aria-hidden="true">
+    <div className="animate-pulse rounded-lg border border-border bg-surface p-4" aria-hidden="true">
       <div className="h-4 w-32 rounded bg-slate-200" />
       <div className="mt-4 grid grid-cols-3 gap-2">
         {ZONE_ORDER.map((zone) => (
@@ -26,13 +28,13 @@ function DistrictCard({ summary, flashing }: { summary: DistrictSummary; flashin
     <AppLink
       to={pathFor({ name: 'district', district: summary.district })}
       className={[
-        'block rounded-lg border border-slate-200 bg-white p-4 transition-colors hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-slate-900',
+        'block rounded-lg border border-border bg-surface p-4 transition-colors hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-brand',
         flashing ? 'changed-flash' : '',
       ].join(' ')}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-base font-semibold text-slate-900">{summary.district}</h3>
-        <span className="text-xs text-slate-500">
+        <h3 className="text-base font-semibold text-text-primary">{summary.district}</h3>
+        <span className="text-xs text-text-muted">
           {summary.total} {REGISTRY_UI.active}
         </span>
       </div>
@@ -41,14 +43,14 @@ function DistrictCard({ summary, flashing }: { summary: DistrictSummary; flashin
         {ZONE_ORDER.map((zone) => (
           <div
             key={zone}
-            className="rounded-md border-t-4 bg-slate-50 px-2.5 py-2"
-            style={{ borderTopColor: ZONE_COLORS[zone] }}
+            className={['rounded-md border-t-4 bg-bg px-2.5 py-2', ZONE_CLASS[zone].borderTop].join(' ')}
           >
             {/* 24px bold: large text, so the zone colour clears 3:1 even for sariq. */}
-            <div className="text-2xl leading-none font-bold tabular-nums" style={{ color: ZONE_COLORS[zone] }}>
+            <div className={['text-2xl leading-none font-semibold', ZONE_CLASS[zone].text].join(' ')}>
               {summary[zone]}
             </div>
-            <div className="mt-1 text-[11px] font-semibold tracking-wide text-slate-700">
+            <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide text-slate-700">
+              <ZoneIcon zone={zone} size={11} />
               {ZONE_NAMES[zone]}
             </div>
           </div>
@@ -96,7 +98,7 @@ export function RegistryOverview() {
     <div className="pb-10">
       <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">{REGISTRY_UI.title}</h2>
+          <h2 className="text-lg font-semibold text-text-primary">{REGISTRY_UI.title}</h2>
           <p className="text-sm text-slate-600">{REGISTRY_UI.subtitle}</p>
         </div>
         <LiveBadge status={live.status} onReconnect={live.reconnect} />
@@ -120,7 +122,7 @@ export function RegistryOverview() {
       ) : null}
 
       {districts !== null && districts.length === 0 ? (
-        <p className="mt-6 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        <p className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm text-slate-600">
           {REGISTRY_UI.noDistricts}
         </p>
       ) : null}

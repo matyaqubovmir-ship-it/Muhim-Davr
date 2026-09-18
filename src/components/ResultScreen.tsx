@@ -8,6 +8,7 @@ import {
   ZONE_NAMES,
 } from '../lib/labels'
 import type { SavedVisit } from '../lib/visit-followup'
+import { ZONE_CLASS } from '../lib/zone-style'
 import { EscalationNotice } from './EscalationNotice'
 import { LinkCode } from './LinkCode'
 import { ProtocolReminders } from './ProtocolReminders'
@@ -26,17 +27,27 @@ export function ResultScreen({
 
   return (
     <div className="pb-24">
+      {/*
+        The zone's own colour, with the text colour that clears AA on it: white
+        on qizil and yashil, dark on sariq (white on that amber is 3.7:1). No
+        opacity on the text — it would pull the small lines below AA.
+      */}
       <div
-        className="mt-4 rounded-xl px-4 py-7 text-center text-white"
-        style={{ backgroundColor: color }}
+        className={[
+          'mt-4 rounded-xl px-4 py-7 text-center transition-colors duration-500',
+          ZONE_CLASS[result.zone].solid,
+        ].join(' ')}
       >
-        <div className="text-5xl leading-none font-bold tracking-tight">
+        <div className="flex items-center justify-center gap-3 text-5xl leading-none font-semibold tracking-tight">
+          <svg width="40" height="40" viewBox="0 0 16 16" aria-hidden="true">
+            {result.zone === 'qizil' ? <path d="M5.2 1h5.6L15 5.2v5.6L10.8 15H5.2L1 10.8V5.2z" fill="none" stroke="currentColor" strokeWidth="1.4" /> : null}
+            {result.zone === 'sariq' ? <path d="M8 1.6 14.8 14H1.2z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /> : null}
+            {result.zone === 'yashil' ? <circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" strokeWidth="1.4" /> : null}
+          </svg>
           {ZONE_NAMES[result.zone]}
         </div>
-        <div className="mt-3 text-sm leading-snug opacity-95">
-          {ZONE_ADVICE[result.zone]}
-        </div>
-        <div className="mt-4 text-sm opacity-90">
+        <div className="mt-3 text-sm leading-snug">{ZONE_ADVICE[result.zone]}</div>
+        <div className="mt-4 text-sm">
           {UI.score}: <span className="font-semibold">{result.score}</span>
         </div>
       </div>
@@ -69,13 +80,13 @@ export function ResultScreen({
       ) : null}
 
       <section className="mt-5">
-        <h2 className="mb-2 border-b border-slate-200 pb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+        <h2 className="mb-2 border-b border-border pb-1.5 text-xs font-semibold tracking-wide text-text-muted uppercase">
           {UI.factorsTitle}
         </h2>
         {result.firedFactors.length === 0 ? (
           <p className="py-1 text-sm text-slate-600">{UI.noFactors}</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-border">
             {result.firedFactors.map((factor) => (
               <li
                 key={factor}
@@ -97,7 +108,7 @@ export function ResultScreen({
 
       {/* Whether the dates above were stored, which is what the reminders read. */}
       {schedule.kind === 'saved' ? (
-        <p className="mt-2 text-xs leading-snug text-slate-500">{FOLLOW_UP_UI.scheduleSaved}</p>
+        <p className="mt-2 text-xs leading-snug text-text-muted">{FOLLOW_UP_UI.scheduleSaved}</p>
       ) : null}
       {schedule.kind === 'failed' ? (
         <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm leading-snug text-amber-900">
@@ -111,17 +122,17 @@ export function ResultScreen({
       <LinkCode pregnancyId={pregnancyId} />
 
       {assessmentId ? (
-        <p className="mt-5 text-xs break-all text-slate-400">
+        <p className="mt-5 text-xs break-all text-text-muted">
           {UI.savedAs}: {assessmentId}
         </p>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="mx-auto max-w-lg">
           <button
             type="button"
             onClick={onNewEntry}
-            className="min-h-12 w-full rounded-lg bg-slate-900 text-base font-semibold text-white"
+            className="min-h-12 w-full rounded-lg bg-brand text-base font-semibold text-white"
           >
             {UI.newEntry}
           </button>

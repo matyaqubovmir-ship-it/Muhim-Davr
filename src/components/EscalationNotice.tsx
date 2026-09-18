@@ -42,7 +42,7 @@ export function EscalationNotice({
 
   if (outcome.kind === 'sent') {
     return (
-      <p className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800">
+      <p className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-slate-800">
         {FOLLOW_UP_UI.escalationSent}
       </p>
     )

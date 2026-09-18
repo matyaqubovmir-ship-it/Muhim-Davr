@@ -44,7 +44,7 @@ describe('pushToast', () => {
 describe('the demo role switch', () => {
   it('gives the midwife her forms and the specialist the registry and queue', () => {
     expect(ROLE_TABS.midwife).toEqual(['entry', 'new_patient'])
-    expect(ROLE_TABS.specialist).toEqual(['registry', 'escalations'])
+    expect(ROLE_TABS.specialist).toEqual(['registry', 'escalations', 'patients'])
     expect(homeFor('specialist')).toEqual({ name: 'registry' })
     expect(homeFor('midwife')).toEqual({ name: 'entry' })
   })

@@ -14,6 +14,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { REGISTRY_UI } from './labels'
 import type { RiskZone } from './risk'
 import { addDays, parseISODate, startOfDay } from './schedule'
 
@@ -61,6 +62,7 @@ export const NOT_SEEN_AFTER_DAYS = 42
 export interface RegistryPatient {
   pregnancyId: string
   fullName: string
+  district: string
   village: string | null
   /** Null when she has never been assessed. */
   zone: RiskZone | null
@@ -130,10 +132,23 @@ export function staleness(
   return null
 }
 
+/** Why she needs chasing, in words. */
+export function stalenessText(staleness: Staleness): string {
+  switch (staleness.kind) {
+    case 'overdue':
+      return `${REGISTRY_UI.overdue}: ${formatDay(staleness.since)}`
+    case 'never_seen':
+      return REGISTRY_UI.neverSeen
+    case 'not_seen':
+      return `${staleness.days} ${REGISTRY_UI.notSeenDays}`
+  }
+}
+
 /** One registry_pregnancies row, as PostgREST returns it. */
 export interface RegistryRow {
   pregnancy_id: string
   full_name: string
+  district: string
   village: string | null
   lmp_date: string | null
   edd_date: string | null
@@ -153,6 +168,7 @@ export function toRegistryPatient(row: RegistryRow, today: Date): RegistryPatien
   return {
     pregnancyId: row.pregnancy_id,
     fullName: row.full_name,
+    district: row.district,
     village: row.village,
     zone: row.risk_zone,
     gestationalWeek: currentGestationalWeek(lmp, row.latest_ga_weeks, gaOn, today),
@@ -182,6 +198,59 @@ export function groupByZone(patients: readonly RegistryPatient[]): ZoneGroups {
     )
   }
   return groups
+}
+
+export type SortKey = 'zone' | 'name' | 'district' | 'week' | 'dueDate' | 'lastVisit'
+export type SortDirection = 'asc' | 'desc'
+
+/**
+ * Severity, for sorting: most urgent first. Not assessed sits after sariq and
+ * before yashil — unknown risk is not low risk, so it never sorts as the safest.
+ */
+export const ZONE_RANK: Record<RiskZone | 'unassessed', number> = {
+  qizil: 0,
+  sariq: 1,
+  unassessed: 2,
+  yashil: 3,
+}
+
+/**
+ * Sorts the registry table. Ties always fall back to the triage order — who
+ * needs chasing, then who has gone longest unseen, then name — so equal rows
+ * never shuffle between renders. Missing values sort last in either direction.
+ */
+export function sortPatients(
+  patients: readonly RegistryPatient[],
+  key: SortKey,
+  direction: SortDirection,
+): RegistryPatient[] {
+  const sign = direction === 'asc' ? 1 : -1
+  const lastSeen = (p: RegistryPatient) => p.lastVisit?.getTime() ?? Number.NEGATIVE_INFINITY
+  const triage = (a: RegistryPatient, b: RegistryPatient) =>
+    Number(b.staleness !== null) - Number(a.staleness !== null) ||
+    lastSeen(a) - lastSeen(b) ||
+    a.fullName.localeCompare(b.fullName, 'uz')
+  const nullable = (x: number | null, y: number | null) =>
+    x === null && y === null ? 0 : x === null ? 1 : y === null ? -1 : sign * (x - y)
+
+  const compare = (a: RegistryPatient, b: RegistryPatient): number => {
+    switch (key) {
+      case 'zone':
+        return sign * (ZONE_RANK[a.zone ?? 'unassessed'] - ZONE_RANK[b.zone ?? 'unassessed'])
+      case 'name':
+        return sign * a.fullName.localeCompare(b.fullName, 'uz')
+      case 'district':
+        return sign * a.district.localeCompare(b.district, 'uz')
+      case 'week':
+        return nullable(a.gestationalWeek, b.gestationalWeek)
+      case 'dueDate':
+        return nullable(a.dueDate?.date.getTime() ?? null, b.dueDate?.date.getTime() ?? null)
+      case 'lastVisit':
+        return nullable(a.lastVisit?.getTime() ?? null, b.lastVisit?.getTime() ?? null)
+    }
+  }
+
+  return [...patients].sort((a, b) => compare(a, b) || triage(a, b))
 }
 
 /** Districts whose counts differ from the previous read, or that are new. */
@@ -240,18 +309,34 @@ export async function loadDistricts(client: SupabaseClient): Promise<DistrictSum
   )
 }
 
-export async function loadDistrictPatients(
+/** The most rows the patient list reads at once; past this, search narrows it. */
+export const PATIENT_LIST_LIMIT = 200
+
+/**
+ * Active pregnancies from registry_pregnancies: one district's, or everyone's
+ * whose name contains the text.
+ */
+export async function loadRegistryPatients(
   client: SupabaseClient,
-  district: string,
+  filter: { district?: string; nameContains?: string },
   today: Date = new Date(),
 ): Promise<RegistryPatient[]> {
-  const { data, error } = await client
+  let query = client
     .from('registry_pregnancies')
     .select(
-      'pregnancy_id, full_name, village, lmp_date, edd_date, risk_zone, ' +
+      'pregnancy_id, full_name, district, village, lmp_date, edd_date, risk_zone, ' +
         'last_clinic_visit_date, latest_ga_weeks, latest_ga_on, earliest_planned_visit',
     )
-    .eq('district', district)
+  if (filter.district !== undefined) query = query.eq('district', filter.district)
+  const text = filter.nameContains?.trim() ?? ''
+  if (text !== '') query = query.ilike('full_name', `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`)
+  if (filter.district === undefined) query = query.order('full_name').limit(PATIENT_LIST_LIMIT)
+
+  const { data, error } = await query
   if (error) throw new Error(error.message)
   return ((data ?? []) as unknown as RegistryRow[]).map((row) => toRegistryPatient(row, today))
+}
+
+export function loadDistrictPatients(client: SupabaseClient, district: string, today: Date = new Date()) {
+  return loadRegistryPatients(client, { district }, today)
 }

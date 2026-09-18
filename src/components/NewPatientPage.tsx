@@ -16,7 +16,7 @@ import { AppLink } from './AppLink'
 import { LinkCode } from './LinkCode'
 
 const INPUT =
-  'min-h-11 w-full rounded-md border bg-white px-3 text-base text-slate-900 focus:border-slate-900 focus:outline-none'
+  'min-h-11 w-full rounded-md border bg-surface px-3 text-base text-text-primary focus:border-brand focus:outline-none'
 
 /** A name typed into the entry form's search, handed over in history state. */
 function readNameHint(): string {
@@ -56,7 +56,7 @@ function Field({
     <div className="py-2">
       <label htmlFor={id} className="mb-1.5 block text-sm leading-snug text-slate-800">
         {label}
-        {optional ? <span className="ml-1 text-slate-500">({NEW_PATIENT_UI.optional})</span> : null}
+        {optional ? <span className="ml-1 text-text-muted">({NEW_PATIENT_UI.optional})</span> : null}
       </label>
       {children}
       {error ? <p className="mt-1 text-sm text-red-700">{error}</p> : null}
@@ -121,8 +121,8 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
   if (created !== null) {
     return (
       <div className="pb-12">
-        <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="text-base font-semibold text-slate-900">{NEW_PATIENT_UI.createdTitle}</h2>
+        <section className="mt-4 rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-base font-semibold text-text-primary">{NEW_PATIENT_UI.createdTitle}</h2>
           <p className="mt-1 text-sm text-slate-800">{created.fullName}</p>
           <p className="text-sm text-slate-600">{[created.district, created.village].filter(Boolean).join(' · ')}</p>
         </section>
@@ -133,13 +133,13 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
           <button
             type="button"
             onClick={() => onRecordVisit(created)}
-            className="min-h-12 flex-1 rounded-lg bg-slate-900 px-4 text-base font-semibold text-white"
+            className="min-h-12 flex-1 rounded-lg bg-brand px-4 text-base font-semibold text-white"
           >
             {NEW_PATIENT_UI.recordVisit}
           </button>
           <AppLink
             to={pathFor({ name: 'patient', pregnancyId: created.pregnancyId })}
-            className="flex min-h-12 flex-1 items-center justify-center rounded-lg border border-slate-900 bg-white px-4 text-base font-semibold text-slate-900"
+            className="flex min-h-12 flex-1 items-center justify-center rounded-lg border border-text-primary bg-surface px-4 text-base font-semibold text-text-primary"
           >
             {NEW_PATIENT_UI.openPatient}
           </AppLink>
@@ -169,7 +169,7 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
   return (
     <form onSubmit={submit} className="pb-12" noValidate>
       <div className="mt-4">
-        <h2 className="text-lg font-semibold text-slate-900">{NEW_PATIENT_UI.title}</h2>
+        <h2 className="text-lg font-semibold text-text-primary">{NEW_PATIENT_UI.title}</h2>
         <p className="text-sm text-slate-600">{NEW_PATIENT_UI.subtitle}</p>
       </div>
 
@@ -242,7 +242,7 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
               key={mode}
               className={[
                 'flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm',
-                form.lmpMode === mode ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-800',
+                form.lmpMode === mode ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-surface text-slate-800',
               ].join(' ')}
             >
               <input
@@ -300,7 +300,7 @@ export function NewPatientPage({ onRecordVisit }: { onRecordVisit: (choice: Preg
       <button
         type="submit"
         disabled={submitting}
-        className="mt-6 min-h-12 w-full rounded-lg bg-slate-900 text-base font-semibold text-white disabled:opacity-60"
+        className="mt-6 min-h-12 w-full rounded-lg bg-brand text-base font-semibold text-white disabled:opacity-60"
       >
         {submitting ? NEW_PATIENT_UI.submitting : NEW_PATIENT_UI.submit}
       </button>

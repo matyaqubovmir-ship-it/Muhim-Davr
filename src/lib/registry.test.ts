@@ -11,7 +11,9 @@ import {
   formatDay,
   groupByZone,
   sortDistricts,
+  sortPatients,
   staleness,
+  stalenessText,
   toRegistryPatient,
   type DistrictSummary,
   type RegistryPatient,
@@ -107,6 +109,7 @@ describe('staleness', () => {
 const row = (overrides: Partial<RegistryRow>): RegistryRow => ({
   pregnancy_id: 'p',
   full_name: 'Test Bemor',
+  district: 'T',
   village: null,
   lmp_date: null,
   edd_date: null,
@@ -134,6 +137,7 @@ describe('toRegistryPatient', () => {
     expect(patient).toEqual({
       pregnancyId: 'p-1',
       fullName: 'Test Bemor',
+      district: 'T',
       village: 'Sanoat',
       zone: 'qizil',
       gestationalWeek: 24,
@@ -153,6 +157,7 @@ describe('toRegistryPatient', () => {
 const patient = (id: string, zone: RegistryPatient['zone'], extra: Partial<RegistryPatient> = {}): RegistryPatient => ({
   pregnancyId: id,
   fullName: id,
+  district: 'T',
   village: null,
   zone,
   gestationalWeek: null,
@@ -257,5 +262,43 @@ describe('no geography in code', () => {
         expect(text.includes(place), `${place} in ${file}`).toBe(false)
       }
     }
+  })
+})
+
+describe('sortPatients — the registry table', () => {
+  const list = [
+    patient('green', 'yashil', { gestationalWeek: 30 }),
+    patient('unknown', null, { gestationalWeek: null }),
+    patient('red-late', 'qizil', { lastVisit: d(2026, 9, 10), gestationalWeek: 20 }),
+    patient('red-chase', 'qizil', { lastVisit: d(2026, 9, 12), staleness: { kind: 'overdue', since: d(2026, 9, 15) } }),
+    patient('amber', 'sariq', { gestationalWeek: 36 }),
+  ]
+
+  it('defaults to triage order: qizil, sariq, then not assessed, then yashil — unknown is never the safest', () => {
+    expect(sortPatients(list, 'zone', 'asc').map((p) => p.pregnancyId)).toEqual([
+      'red-chase',
+      'red-late',
+      'amber',
+      'unknown',
+      'green',
+    ])
+  })
+
+  it('sorts by gestational week, leaving unknown weeks last in either direction', () => {
+    expect(sortPatients(list, 'week', 'desc').map((p) => p.pregnancyId).at(-1)).toBe('unknown')
+    expect(sortPatients(list, 'week', 'asc').map((p) => p.pregnancyId).at(-1)).toBe('unknown')
+    expect(sortPatients(list, 'week', 'desc')[0].pregnancyId).toBe('amber')
+  })
+
+  it('breaks ties by the triage order, so equal rows never shuffle', () => {
+    const twins = [patient('b', 'qizil'), patient('a', 'qizil')]
+    expect(sortPatients(twins, 'district', 'asc').map((p) => p.pregnancyId)).toEqual(['a', 'b'])
+  })
+})
+
+describe('stalenessText', () => {
+  it('says why she needs chasing', () => {
+    expect(stalenessText({ kind: 'overdue', since: d(2026, 9, 10) })).toContain('10.09.2026')
+    expect(stalenessText({ kind: 'not_seen', days: 50 })).toMatch(/^50 /)
   })
 })

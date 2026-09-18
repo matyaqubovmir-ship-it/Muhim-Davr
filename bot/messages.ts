@@ -44,7 +44,7 @@ const GO_NOW =
 export const BOT = {
   // --- linking -------------------------------------------------------------
   startNoCode:
-    'Assalomu alaykum. Bu — ONA xizmati.\n\n' +
+    'Assalomu alaykum. Bu — Muhim Davr xizmati.\n\n' +
     'Ulanish uchun akusherkangiz bergan kodni yuboring:\n' +
     '/start KOD\n\n' +
     'Masalan: /start A3F91C',

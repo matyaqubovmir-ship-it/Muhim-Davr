@@ -14,7 +14,7 @@ import { UI, WHO_PROTOCOL_REMINDERS } from '../lib/labels'
 export function ProtocolReminders() {
   return (
     <section className="mt-6 rounded-lg border-2 border-dashed border-slate-400 bg-slate-100 p-4">
-      <h2 className="text-sm leading-snug font-bold text-slate-900">
+      <h2 className="text-sm leading-snug font-semibold text-text-primary">
         {UI.protocolTitle}
       </h2>
 
@@ -24,7 +24,7 @@ export function ProtocolReminders() {
             key={reminder}
             className="flex gap-2.5 text-sm leading-snug text-slate-800"
           >
-            <span aria-hidden="true" className="text-slate-500">
+            <span aria-hidden="true" className="text-text-muted">
               §
             </span>
             <span>{reminder}</span>

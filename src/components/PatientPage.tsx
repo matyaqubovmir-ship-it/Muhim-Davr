@@ -26,47 +26,30 @@ import { AppLink } from './AppLink'
 import { AssessmentChart } from './AssessmentChart'
 import { LinkCode } from './LinkCode'
 import { VisitSchedule } from './VisitSchedule'
+import { ZonePill, ZoneSolid } from './Zone'
 
 const SECTION_TITLE =
-  'mb-2 border-b border-slate-200 pb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase'
+  'mb-2 border-b border-border pb-1.5 text-xs font-semibold tracking-wide text-text-muted uppercase'
 
 function titleCase(word: string): string {
   return word.charAt(0) + word.slice(1).toLowerCase()
 }
 
-/** Zone word on its colour. 20px bold is large text, so even sariq clears 3:1. */
+/** The headline zone badge, or a neutral one when she has never been assessed. */
 function ZoneBadge({ zone }: { zone: RiskZone | null }) {
-  if (zone === null) {
-    return (
-      <span className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-bold tracking-wide text-slate-700">
-        {PATIENT_PAGE_UI.notAssessed}
-      </span>
-    )
-  }
-  return (
-    <span
-      className="rounded-md px-3 py-1 text-xl leading-tight font-bold tracking-wide text-white"
-      style={{ backgroundColor: ZONE_COLORS[zone] }}
-    >
-      {ZONE_NAMES[zone]}
-    </span>
-  )
+  if (zone === null) return <ZonePill zone={null} size="md" />
+  return <ZoneSolid zone={zone} className="px-3 py-1.5 text-xl" />
 }
 
 function ZoneWord({ zone }: { zone: RiskZone }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
-      <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ZONE_COLORS[zone] }} />
-      {ZONE_NAMES[zone]}
-    </span>
-  )
+  return <ZonePill zone={zone} />
 }
 
 function SourceBadge({ source }: { source: 'clinic' | 'telegram' }) {
   return (
     <span
       className={[
-        'rounded px-1.5 py-0.5 text-[11px] font-bold tracking-wide uppercase',
+        'rounded px-1.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase',
         source === 'telegram' ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-800',
       ].join(' ')}
     >
@@ -81,24 +64,24 @@ const bpText = (a: AssessmentPoint) =>
 /** The assessment the chart or table points at, in full. */
 function Readout({ assessment }: { assessment: AssessmentPoint }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3" aria-live="polite">
+    <div className="rounded-md border border-border bg-surface p-3" aria-live="polite">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <ZoneWord zone={assessment.zone} />
         <span className="text-slate-700">{formatVisit(assessment)}</span>
-        <span className="text-slate-500">
+        <span className="text-text-muted">
           {assessment.recordedBy === 'patient' ? PATIENT_PAGE_UI.byPatient : PATIENT_PAGE_UI.byMidwife}
         </span>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-4 text-sm text-slate-700">
         <span>
-          {PATIENT_PAGE_UI.colBp}: <strong className="text-slate-900">{bpText(assessment)}</strong>
+          {PATIENT_PAGE_UI.colBp}: <strong className="text-text-primary">{bpText(assessment)}</strong>
         </span>
         <span>
           {PATIENT_PAGE_UI.colHb}:{' '}
-          <strong className="text-slate-900">{assessment.hemoglobin ?? '—'}</strong>
+          <strong className="text-text-primary">{assessment.hemoglobin ?? '—'}</strong>
         </span>
         <span>
-          {PATIENT_PAGE_UI.score}: <strong className="text-slate-900">{assessment.score}</strong>
+          {PATIENT_PAGE_UI.score}: <strong className="text-text-primary">{assessment.score}</strong>
         </span>
       </div>
       {assessment.firedFactors.length === 0 ? (
@@ -133,13 +116,13 @@ function History({ assessments }: { assessments: readonly AssessmentPoint[] }) {
   return (
     <div className="space-y-3">
       <AssessmentChart assessments={assessments} active={shown} onHover={setHovered} onSelect={setSelected} />
-      <p className="text-xs text-slate-500">{PATIENT_PAGE_UI.chartHint}</p>
+      <p className="text-xs text-text-muted">{PATIENT_PAGE_UI.chartHint}</p>
       <Readout assessment={assessments[shown]} />
 
       {/* The table is the chart's twin: every plotted value, readable without a pointer. */}
-      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-md border border-border bg-surface">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs text-slate-500">
+          <thead className="bg-bg text-xs text-text-muted">
             <tr>
               <th className="px-3 py-2 font-semibold">{PATIENT_PAGE_UI.colDate}</th>
               <th className="px-3 py-2 font-semibold">{PATIENT_PAGE_UI.colZone}</th>
@@ -149,7 +132,7 @@ function History({ assessments }: { assessments: readonly AssessmentPoint[] }) {
               <th className="px-3 py-2 font-semibold">{PATIENT_PAGE_UI.colBy}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-border">
             {assessments
               .map((a, i) => ({ a, i }))
               .reverse()
@@ -165,7 +148,7 @@ function History({ assessments }: { assessments: readonly AssessmentPoint[] }) {
                   }}
                   className={[
                     'cursor-pointer outline-none focus-visible:bg-slate-100',
-                    i === shown ? 'bg-slate-100' : 'hover:bg-slate-50',
+                    i === shown ? 'bg-slate-100' : 'hover:bg-bg',
                   ].join(' ')}
                 >
                   <td className="px-3 py-2 whitespace-nowrap text-slate-800">{formatVisit(a)}</td>
@@ -194,38 +177,38 @@ function Escalations({ detail }: { detail: PatientDetail }) {
   return (
     <ul className="space-y-2">
       {detail.escalations.map((e) => (
-        <li key={e.id} className="rounded-md border border-slate-200 bg-white p-3">
+        <li key={e.id} className="rounded-md border border-border bg-surface p-3">
           <div className="flex flex-wrap items-center gap-2">
             <SourceBadge source={e.source} />
-            <span className="text-sm font-semibold text-slate-900">
+            <span className="text-sm font-semibold text-text-primary">
               {ESCALATION_STATUS_LABELS[e.status] ?? e.status}
             </span>
           </div>
           <p className="mt-1 text-sm leading-snug text-slate-800">{e.reason}</p>
           <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-slate-700">
-            <dt className="text-slate-500">{PATIENT_PAGE_UI.created}</dt>
+            <dt className="text-text-muted">{PATIENT_PAGE_UI.created}</dt>
             <dd>{formatMoment(e.createdAt)}</dd>
             {e.acknowledgedAt !== null ? (
               <>
-                <dt className="text-slate-500">{PATIENT_PAGE_UI.acknowledged}</dt>
+                <dt className="text-text-muted">{PATIENT_PAGE_UI.acknowledged}</dt>
                 <dd>{formatMoment(e.acknowledgedAt)}</dd>
               </>
             ) : null}
             {e.closedAt !== null ? (
               <>
-                <dt className="text-slate-500">{PATIENT_PAGE_UI.closed}</dt>
+                <dt className="text-text-muted">{PATIENT_PAGE_UI.closed}</dt>
                 <dd>{formatMoment(e.closedAt)}</dd>
               </>
             ) : null}
             {e.referredTo !== null ? (
               <>
-                <dt className="text-slate-500">{PATIENT_PAGE_UI.referredTo}</dt>
+                <dt className="text-text-muted">{PATIENT_PAGE_UI.referredTo}</dt>
                 <dd>{e.referredTo}</dd>
               </>
             ) : null}
             {e.resolutionNote !== null ? (
               <>
-                <dt className="text-slate-500">{PATIENT_PAGE_UI.resolution}</dt>
+                <dt className="text-text-muted">{PATIENT_PAGE_UI.resolution}</dt>
                 <dd>{e.resolutionNote}</dd>
               </>
             ) : null}
@@ -259,7 +242,7 @@ function Schedule({ detail }: { detail: PatientDetail }) {
     <>
       <VisitSchedule lmpDate={anchor} zone={detail.currentZone} />
       {anchor !== null ? (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-text-muted">
           {lmpLabel}:{' '}
           {formatDay(anchor)}
         </p>
@@ -275,9 +258,9 @@ function TelegramFeed({ detail }: { detail: PatientDetail }) {
   return (
     <ul className="space-y-2">
       {detail.reports.map((r) => (
-        <li key={r.id} className="rounded-md border border-slate-200 bg-white p-3">
+        <li key={r.id} className="rounded-md border border-border bg-surface p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-500">{formatMoment(r.createdAt)}</span>
+            <span className="text-text-muted">{formatMoment(r.createdAt)}</span>
             <span
               className={[
                 'rounded px-1.5 py-0.5 font-semibold',
@@ -294,7 +277,7 @@ function TelegramFeed({ detail }: { detail: PatientDetail }) {
               <span className="font-semibold text-slate-700">· {PATIENT_PAGE_UI.escalated}</span>
             ) : null}
           </div>
-          <p className="mt-1.5 text-sm leading-snug whitespace-pre-wrap text-slate-900">«{r.messageText}»</p>
+          <p className="mt-1.5 text-sm leading-snug whitespace-pre-wrap text-text-primary">«{r.messageText}»</p>
           {r.matchedSigns.length > 0 ? (
             <p className="mt-1 text-xs text-slate-600">{r.matchedSigns.map(describeFactor).join(' · ')}</p>
           ) : null}
@@ -338,7 +321,7 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
         <nav className="mt-4 text-sm">
           <AppLink
             to={pathFor({ name: 'district', district: origin.district })}
-            className="text-slate-600 hover:text-slate-900 hover:underline"
+            className="text-slate-600 hover:text-text-primary hover:underline"
           >
             ← {origin.zone !== null ? `${titleCase(ZONE_NAMES[origin.zone])} · ` : ''}
             {origin.district}
@@ -364,7 +347,7 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
       ) : null}
 
       {detail === null ? (
-        <p className="mt-6 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">
+        <p className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm text-slate-700">
           {PATIENT_PAGE_UI.notFound}
         </p>
       ) : null}
@@ -373,7 +356,7 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
         <>
           <header className="mt-3 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">{detail.header.fullName}</h2>
+              <h2 className="text-xl font-semibold text-text-primary">{detail.header.fullName}</h2>
               <p className="text-sm text-slate-600">
                 {[detail.header.district, detail.header.village].filter(Boolean).join(' · ')}
               </p>
@@ -402,7 +385,7 @@ export function PatientPage({ pregnancyId }: { pregnancyId: string }) {
                   <span>
                     {PATIENT_PAGE_UI.dueDate}: {formatDay(figures.dueDate.date)}
                     {figures.dueDate.computed ? (
-                      <span className="text-slate-500"> ({PATIENT_PAGE_UI.computed})</span>
+                      <span className="text-text-muted"> ({PATIENT_PAGE_UI.computed})</span>
                     ) : null}
                   </span>
                 ) : null}

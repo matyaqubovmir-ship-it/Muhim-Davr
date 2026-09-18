@@ -47,8 +47,8 @@ export function TriState({
                 selected
                   ? unknown
                     ? 'border-slate-500 bg-slate-600 text-white'
-                    : 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-300 bg-white text-slate-600',
+                    : 'border-brand bg-brand text-white'
+                  : 'border-slate-300 bg-surface text-slate-600',
               ].join(' ')}
             >
               {option.label}

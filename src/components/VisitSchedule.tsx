@@ -1,4 +1,5 @@
-import { SCHEDULE_ZONE_NOTES, UI, VISIT_STATUS_LABELS, ZONE_COLORS } from '../lib/labels'
+import { SCHEDULE_ZONE_NOTES, UI, VISIT_STATUS_LABELS } from '../lib/labels'
+import { ZONE_CLASS } from '../lib/zone-style'
 import {
   findNextVisit,
   formatISODate,
@@ -25,7 +26,7 @@ export function VisitSchedule({
   if (lmpDate === null) {
     return (
       <section className="mt-6">
-        <h2 className="mb-2 border-b border-slate-200 pb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+        <h2 className="mb-2 border-b border-border pb-1.5 text-xs font-semibold tracking-wide text-text-muted uppercase">
           {UI.scheduleTitle}
         </h2>
         <p className="py-1 text-sm leading-snug text-slate-600">{UI.scheduleNeedsGa}</p>
@@ -36,16 +37,15 @@ export function VisitSchedule({
   const schedule = generateSchedule({ lmpDate, currentZone: zone, today })
   const next = findNextVisit(schedule, today)
   const now = startOfDay(today)
-  const color = ZONE_COLORS[zone]
 
   return (
     <section className="mt-6">
-      <h2 className="mb-2 border-b border-slate-200 pb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+      <h2 className="mb-2 border-b border-border pb-1.5 text-xs font-semibold tracking-wide text-text-muted uppercase">
         {UI.scheduleTitle}
       </h2>
 
       <p className="text-sm leading-snug text-slate-700">{SCHEDULE_ZONE_NOTES[zone]}</p>
-      <p className="mt-0.5 text-xs text-slate-500">{UI.scheduleBasis}</p>
+      <p className="mt-0.5 text-xs text-text-muted">{UI.scheduleBasis}</p>
 
       <ol className="mt-3 space-y-1.5">
         {schedule.map((visit, index) => {
@@ -60,18 +60,17 @@ export function VisitSchedule({
               className={[
                 'rounded-md border p-2.5',
                 isNext
-                  ? 'border-2 bg-white'
+                  ? `border-2 bg-surface ${ZONE_CLASS[zone].border}`
                   : missed
-                    ? 'border-slate-200 bg-slate-50'
-                    : 'border-slate-200 bg-white',
+                    ? 'border-border bg-bg'
+                    : 'border-border bg-surface',
               ].join(' ')}
-              style={isNext ? { borderColor: color } : undefined}
             >
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span
                   className={[
                     'text-sm font-semibold',
-                    missed ? 'text-slate-400' : 'text-slate-900',
+                    missed ? 'text-text-muted' : 'text-text-primary',
                   ].join(' ')}
                 >
                   {visit.contactNumber}. {visit.targetWeek}-{UI.week}
@@ -79,15 +78,14 @@ export function VisitSchedule({
 
                 {/* The zone-adjusted interval, visible per contact. */}
                 {interval !== null ? (
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-text-muted">
                     +{interval} {UI.week}
                   </span>
                 ) : null}
 
                 {isNext ? (
                   <span
-                    className="rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white uppercase"
-                    style={{ backgroundColor: color }}
+                    className={['rounded px-1.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase', ZONE_CLASS[zone].solid].join(' ')}
                   >
                     {isToday ? UI.today : UI.nextVisit}
                   </span>
@@ -97,7 +95,7 @@ export function VisitSchedule({
               <div
                 className={[
                   'mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm',
-                  missed ? 'text-slate-400' : 'text-slate-700',
+                  missed ? 'text-text-muted' : 'text-slate-700',
                 ].join(' ')}
               >
                 <span>{formatISODate(visit.targetDate)}</span>

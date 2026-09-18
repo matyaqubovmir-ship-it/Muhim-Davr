@@ -1,9 +1,37 @@
 @import "tailwindcss";
 
 /*
- * A row or card whose numbers just changed under a live update: one brief
- * amber ring that fades out. Motion only where something actually changed.
+ * Design tokens. The zone hexes MUST stay equal to ZONE_COLORS in
+ * src/lib/labels.ts, which remains the runtime source for inline styles and
+ * the charts; src/lib/zone-style.test.ts fails the build if they drift. The
+ * soft steps are backgrounds only — see zone-style.ts for which text and marks
+ * may sit on them, with the contrast of every pairing computed in its test.
  */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: #F7F9FB;
+  --color-surface: #FFFFFF;
+  --color-border: #E3E8EF;
+  --color-text-primary: #0F172A;
+  --color-text-muted: #64748B;
+  --color-brand: #2563EB;
+  --color-brand-soft: #EFF6FF;
+
+  --color-zone-qizil: #BE3A2B;
+  --color-zone-qizil-soft: #FBEAE8;
+  --color-zone-sariq: #B97609;
+  --color-zone-sariq-soft: #FCF1DF;
+  --color-zone-yashil: #2C7A50;
+  --color-zone-yashil-soft: #E7F3ED;
+}
+
+/*
+ * Motion: only where something changed, and never when the reader has asked
+ * for less of it.
+ */
+
+/* A row or card whose numbers just changed under a live update. */
 @keyframes changed-flash {
   from {
     box-shadow: 0 0 0 3px #f59e0b;
@@ -13,14 +41,51 @@
     box-shadow: 0 0 0 0 transparent;
   }
 }
-
 .changed-flash {
   animation: changed-flash 2.4s ease-out;
 }
 
+/* A new escalation arriving in the queue or as a toast. */
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.row-enter {
+  animation:
+    row-enter 0.35s ease-out,
+    changed-flash 2.4s ease-out;
+}
+
+/* The notification count going up: one small pulse. */
+@keyframes badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+}
+.badge-pulse {
+  animation: badge-pulse 0.5s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .changed-flash {
+  .changed-flash,
+  .row-enter {
     animation: none;
     box-shadow: 0 0 0 3px #f59e0b;
+  }
+  .badge-pulse {
+    animation: none;
+  }
+  * {
+    transition-duration: 0s !important;
   }
 }

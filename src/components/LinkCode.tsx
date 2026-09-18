@@ -24,7 +24,7 @@ export function LinkCode({ pregnancyId }: { pregnancyId: string }) {
       ) : (
         <>
           <p className="mt-1.5 text-sm leading-snug text-sky-950">{LINK_CODE_UI.body}</p>
-          <p className="mt-2 rounded-md bg-white px-3 py-2 text-center font-mono text-2xl font-bold tracking-[0.2em] text-slate-900">
+          <p className="mt-2 rounded-md bg-surface px-3 py-2 text-center font-mono text-2xl font-semibold tracking-[0.2em] text-text-primary">
             /start {code}
           </p>
           {botUsername ? (

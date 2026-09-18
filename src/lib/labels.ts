@@ -21,13 +21,12 @@ import type { FormFieldName } from './form-fields.ts'
 import type { DangerSign } from './danger-signs.ts'
 
 export const UI = {
-  appTitle: 'ONA',
+  appTitle: 'Muhim Davr',
   appSubtitle: 'Homiladorlik xavfini baholash',
 
   newEntry: 'Yangi qayd',
   save: 'Saqlash',
   saving: 'Saqlanmoqda...',
-
 
   yes: 'Ha',
   no: 'Yo‘q',
@@ -263,7 +262,7 @@ export const FOLLOW_UP_UI = {
 /** Shown on the midwife's screen so she can read the code out to the patient. */
 export const LINK_CODE_UI = {
   title: 'Telegram uchun kod',
-  body: 'Bu kodni bemorga bering. U Telegramda ONA botiga yuboradi:',
+  body: 'Bu kodni bemorga bering. U Telegramda Muhim Davr botiga yuboradi:',
   bot: 'Bot',
   unavailable:
     'Kod ko‘rsatilmadi: homiladorlik ID to‘g‘ri formatda emas.',
@@ -296,6 +295,16 @@ export const REGISTRY_UI = {
   connecting: 'Ulanmoqda...',
   liveDown: 'Jonli yangilanish uzildi',
   reconnect: 'Qayta ulanish',
+
+  viewTable: 'Jadval',
+  viewBoard: 'Doska',
+  colZone: 'Zona',
+  colPatient: 'Bemor',
+  colDistrict: 'Tuman',
+  colWeek: 'Muddat',
+  colDue: 'Tug‘ruq',
+  colLastVisit: 'Oxirgi ko‘rik',
+  colStatus: 'Holat',
 } as const
 
 /** Registering a patient (/patients/new). */
@@ -443,6 +452,23 @@ export const NOT_FOUND_UI = {
   home: 'Bosh sahifa',
 } as const
 
+/** The specialist's shell: its nav and its bell. */
+export const NAV_UI = {
+  registry: 'Reyestr',
+  escalations: 'Yo‘llanmalar',
+  patients: 'Bemorlar',
+  bell: 'Ochiq yo‘llanmalar',
+} as const
+
+/** The patient list (/patients). */
+export const PATIENTS_UI = {
+  title: 'Bemorlar',
+  subtitle: 'Barcha tumanlardagi faol homiladorliklar.',
+  search: 'Ism bo‘yicha qidirish',
+  none: 'Faol homiladorlik topilmadi.',
+  truncated: 'Birinchi 200 tasi ko‘rsatildi — qidiruvdan foydalaning.',
+} as const
+
 /** The doctor's escalation queue. */
 export const QUEUE_UI = {
   tabEntry: 'Yangi qayd',
@@ -450,11 +476,34 @@ export const QUEUE_UI = {
   title: 'Ochiq yo‘llanmalar',
   refresh: 'Yangilash',
   loading: 'Yuklanmoqda...',
-  empty: 'Ochiq yo‘llanma yo‘q.',
+  empty: 'Hech qanday ochiq signal yo‘q.',
+  emptyNote: 'Yangi yo‘llanma paydo bo‘lsa, shu yerda va qo‘ng‘iroqchada ko‘rinadi.',
   loadFailed: 'Navbatni yuklab bo‘lmadi.',
   patientWords: 'Bemorning o‘z so‘zlari',
   code: 'Kod',
   truncated: 'Faqat eng so‘nggi 50 tasi ko‘rsatildi.',
+  patientPage: 'Bemor sahifasi',
+
+  acknowledge: 'Qabul qilish',
+  close: 'Yopish',
+  working: 'Saqlanmoqda...',
+  resolutionNote: 'Yakuniy izoh',
+  notePlaceholder: 'Nima qilindi: ko‘rildi, yo‘naltirildi, qo‘ng‘iroq qilindi...',
+  noteRequired: 'Yopish uchun nima qilinganini yozing.',
+  actionFailed: 'Saqlanmadi',
+  alreadyHandled: 'Bu yo‘llanmani boshqa xodim allaqachon ko‘rib chiqqan. Ro‘yxat yangilandi.',
+  acknowledgedAfter: 'dan keyin qabul qilindi',
+
+  statOpen: 'Ochiq',
+  statAcknowledged: 'Qabul qilingan',
+  statAvgAck: 'O‘rtacha qabul vaqti',
+  statAvgAckWindow: 'oxirgi 30 kun',
+  statNone: '—',
+
+  justNow: 'hozirgina',
+  minutes: 'daq',
+  hours: 'soat',
+  days: 'kun',
 } as const
 
 export const ESCALATION_SOURCE_LABELS = {

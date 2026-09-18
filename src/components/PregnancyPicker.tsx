@@ -84,9 +84,9 @@ export function PregnancyPicker({
     return (
       <div className="py-2">
         <div className="mb-1.5 text-sm leading-snug text-slate-800">{PICKER_UI.label}</div>
-        <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-3 py-2">
+        <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-slate-300 bg-surface px-3 py-2">
           <div>
-            <div className="text-base font-semibold text-slate-900">{value.fullName}</div>
+            <div className="text-base font-semibold text-text-primary">{value.fullName}</div>
             <div className="text-xs text-slate-600">{describe(value)}</div>
           </div>
           <button
@@ -145,7 +145,7 @@ export function PregnancyPicker({
           }
         }}
         className={[
-          'min-h-11 w-full rounded-md border bg-white px-3 text-base text-slate-900 focus:border-slate-900 focus:outline-none',
+          'min-h-11 w-full rounded-md border bg-surface px-3 text-base text-text-primary focus:border-brand focus:outline-none',
           invalid ? 'border-red-400' : 'border-slate-300',
         ].join(' ')}
       />
@@ -154,14 +154,14 @@ export function PregnancyPicker({
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+          className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-auto rounded-md border border-slate-300 bg-surface py-1 shadow-lg"
         >
           {status === 'searching' ? (
-            <li className="px-3 py-2 text-sm text-slate-500">{PICKER_UI.searching}</li>
+            <li className="px-3 py-2 text-sm text-text-muted">{PICKER_UI.searching}</li>
           ) : null}
           {status === 'error' ? <li className="px-3 py-2 text-sm text-red-700">{PICKER_UI.searchFailed}</li> : null}
           {status === 'idle' && results.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-slate-500">{PICKER_UI.noMatch}</li>
+            <li className="px-3 py-2 text-sm text-text-muted">{PICKER_UI.noMatch}</li>
           ) : null}
           {results.map((choice, index) => (
             <li
@@ -177,7 +177,7 @@ export function PregnancyPicker({
               onMouseEnter={() => setActive(index)}
               className={['cursor-pointer px-3 py-2', index === active ? 'bg-slate-100' : ''].join(' ')}
             >
-              <div className="text-sm font-semibold text-slate-900">{choice.fullName}</div>
+              <div className="text-sm font-semibold text-text-primary">{choice.fullName}</div>
               <div className="text-xs text-slate-600">{describe(choice)}</div>
             </li>
           ))}
@@ -191,7 +191,7 @@ export function PregnancyPicker({
             }}
             onMouseEnter={() => setActive(results.length)}
             className={[
-              'cursor-pointer border-t border-slate-100 px-3 py-2 text-sm font-semibold text-slate-900',
+              'cursor-pointer border-t border-slate-100 px-3 py-2 text-sm font-semibold text-text-primary',
               active === results.length ? 'bg-slate-100' : '',
             ].join(' ')}
           >

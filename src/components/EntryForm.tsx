@@ -231,7 +231,7 @@ export function EntryForm({
         a shortcut past the form: the midwife still reads every value in the
         normal controls and saves the same way she would after typing.
       */}
-      <section className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+      <section className="mt-3 rounded-lg border border-border bg-surface p-3">
         <label
           htmlFor="narrative"
           className="mb-1.5 block text-sm leading-snug text-slate-800"
@@ -243,13 +243,13 @@ export function EntryForm({
           rows={4}
           value={narrative}
           onChange={(event) => setNarrative(event.target.value)}
-          className="w-full resize-y rounded-md border border-slate-300 bg-white p-3 text-base text-slate-900 focus:border-slate-900 focus:outline-none"
+          className="w-full resize-y rounded-md border border-slate-300 bg-surface p-3 text-base text-text-primary focus:border-brand focus:outline-none"
         />
         <button
           type="button"
           onClick={handleExtract}
           disabled={extracting || narrative.trim() === ''}
-          className="mt-2 min-h-11 w-full rounded-md border border-slate-900 bg-white text-sm font-semibold text-slate-900 disabled:opacity-40"
+          className="mt-2 min-h-11 w-full rounded-md border border-text-primary bg-surface text-sm font-semibold text-text-primary disabled:opacity-40"
         >
           {extracting ? UI.analysing : UI.analyse}
         </button>
@@ -257,7 +257,7 @@ export function EntryForm({
         {extractError ? (
           <p
             role="status"
-            className="mt-2 rounded-md border border-slate-300 bg-slate-50 p-2.5 text-sm text-slate-700"
+            className="mt-2 rounded-md border border-slate-300 bg-bg p-2.5 text-sm text-slate-700"
           >
             {extractError}
           </p>
@@ -280,7 +280,7 @@ export function EntryForm({
 
       {FORM_GROUPS.map((group) => (
         <section key={group.id} className="mt-6">
-          <h2 className="mb-1 border-b border-slate-200 pb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+          <h2 className="mb-1 border-b border-border pb-1.5 text-xs font-semibold tracking-wide text-text-muted uppercase">
             {GROUP_TITLES[group.id]}
           </h2>
           {group.fields.map((field) =>
@@ -315,12 +315,12 @@ export function EntryForm({
         </p>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="mx-auto max-w-lg">
           <button
             type="submit"
             disabled={saving}
-            className="min-h-12 w-full rounded-lg bg-slate-900 text-base font-semibold text-white disabled:opacity-60"
+            className="min-h-12 w-full rounded-lg bg-brand text-base font-semibold text-white disabled:opacity-60"
           >
             {saving ? UI.saving : UI.save}
           </button>

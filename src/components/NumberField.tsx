@@ -23,7 +23,7 @@ export function NumberField({
     <div className="py-2">
       <label htmlFor={id} className="mb-1.5 block text-sm leading-snug text-slate-800">
         {label}
-        {unit ? <span className="ml-1 text-slate-500">({unit})</span> : null}
+        {unit ? <span className="ml-1 text-text-muted">({unit})</span> : null}
         {fromAi ? <AiBadge /> : null}
       </label>
       <input
@@ -32,7 +32,7 @@ export function NumberField({
         inputMode="decimal"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 focus:border-slate-900 focus:outline-none"
+        className="min-h-11 w-full rounded-md border border-slate-300 bg-surface px-3 text-base text-text-primary focus:border-brand focus:outline-none"
       />
     </div>
   )

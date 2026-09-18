@@ -11,6 +11,7 @@ describe('parseRoute', () => {
     ['/escalations', { name: 'escalations' }],
     ['/patients/d8668940-1587-40b2-83a4-294b26d450aa', { name: 'patient', pregnancyId: 'd8668940-1587-40b2-83a4-294b26d450aa' }],
     ['/patients/new', { name: 'new_patient' }],
+    ['/patients', { name: 'patients' }],
     ['/registry/Urganch/extra', { name: 'not_found' }],
     ['/nowhere', { name: 'not_found' }],
     ['/registry/%E0%A4%A', { name: 'not_found' }],
