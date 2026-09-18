@@ -6,7 +6,9 @@ import {
   ZONE_COLORS,
   describeFactor,
 } from '../lib/labels'
+import { useLiveChanges } from '../lib/live-changes'
 import { getAuthedSupabase } from '../lib/supabase'
+import { LiveBadge } from './LiveBadge'
 
 /** More than a district sees in a day; the queue is for what is open now. */
 const QUEUE_LIMIT = 50
@@ -112,6 +114,10 @@ export function EscalationQueue() {
     load()
   }, [load])
 
+  // Re-read when an escalation is raised or changes. The current list stays on
+  // screen until the new one arrives — no flash back to "loading".
+  const live = useLiveChanges({ table: 'escalations', events: ['INSERT', 'UPDATE'], delayMs: 800 }, () => load())
+
   const refresh = () => {
     setState({ kind: 'loading' })
     load()
@@ -121,6 +127,7 @@ export function EscalationQueue() {
     <div className="pb-10">
       <div className="mt-4 flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-slate-900">{QUEUE_UI.title}</h2>
+        <LiveBadge status={live.status} onReconnect={live.reconnect} />
         <button
           type="button"
           onClick={refresh}

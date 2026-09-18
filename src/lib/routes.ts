@@ -2,7 +2,7 @@
  * The app's routes, as data. Pure: parse a path into a route and build a path
  * from one, so every URL the app produces is one it can read back.
  *
- * Hand-rolled rather than a router dependency: there are six paths and none of
+ * Hand-rolled rather than a router dependency: there are seven paths and none of
  * them nests, and a 40-line table is easier to read under time pressure than a
  * library's conventions.
  */
@@ -15,6 +15,7 @@ export type Route =
   | { name: 'registry' }
   | { name: 'district'; district: string }
   | { name: 'patient'; pregnancyId: string }
+  | { name: 'new_patient' }
   | { name: 'not_found' }
 
 /** Where a patient row was clicked from, for the "back to Sariq · <tuman>" link. */
@@ -43,6 +44,7 @@ export function parseRoute(pathname: string): Route {
     const district = decode(parts[1])
     return district === null ? { name: 'not_found' } : { name: 'district', district }
   }
+  if (parts.length === 2 && parts[0] === 'patients' && parts[1] === 'new') return { name: 'new_patient' }
   if (parts.length === 2 && parts[0] === 'patients') {
     const pregnancyId = decode(parts[1])
     return pregnancyId === null ? { name: 'not_found' } : { name: 'patient', pregnancyId }
@@ -62,6 +64,8 @@ export function pathFor(route: Route): string {
       return `/registry/${encodeURIComponent(route.district)}`
     case 'patient':
       return `/patients/${encodeURIComponent(route.pregnancyId)}`
+    case 'new_patient':
+      return '/patients/new'
     case 'not_found':
       return '/'
   }

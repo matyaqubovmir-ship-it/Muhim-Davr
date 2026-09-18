@@ -22,6 +22,8 @@ export interface PatientHeader {
   gravida: number | null
   para: number | null
   lmpDate: Date | null
+  /** From 006: true when worked back from a gestational age, null when not known. */
+  lmpEstimated: boolean | null
   eddDate: Date | null
   isActive: boolean
   outcome: string | null
@@ -205,7 +207,7 @@ export async function loadPatientDetail(
     client
       .from('pregnancies')
       .select(
-        'id, lmp_date, edd_date, gravida, para, is_active, outcome, ' +
+        'id, lmp_date, lmp_estimated, edd_date, gravida, para, is_active, outcome, ' +
           'patients!pregnancies_patient_id_fkey(full_name, birth_date, district, village)',
       )
       .eq('id', pregnancyId)
@@ -251,6 +253,7 @@ export async function loadPatientDetail(
       gravida: toNumber(row.gravida),
       para: toNumber(row.para),
       lmpDate: toDate(row.lmp_date),
+      lmpEstimated: typeof row.lmp_estimated === 'boolean' ? row.lmp_estimated : null,
       eddDate: toDate(row.edd_date),
       isActive: row.is_active === true,
       outcome: typeof row.outcome === 'string' ? row.outcome : null,

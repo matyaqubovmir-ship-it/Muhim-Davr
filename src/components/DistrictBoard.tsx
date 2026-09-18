@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useChangedFlash } from '../lib/changed-flash'
 import { REGISTRY_UI, ZONE_COLORS, ZONE_NAMES } from '../lib/labels'
-import { useLiveAssessments } from '../lib/live-assessments'
+import { useLiveAssessments } from '../lib/live-changes'
 import {
   ZONE_ORDER,
   changedPatients,

@@ -243,6 +243,15 @@ function Schedule({ detail }: { detail: PatientDetail }) {
   // else an estimate from the latest recorded gestational age.
   const anchor = scheduleAnchor(recorded, ga?.weeks ?? null, ga?.on ?? new Date())
 
+  // Say where the anchor came from: she gave it, it was worked back from a
+  // gestational age, or it predates the record of which (null).
+  const lmpLabel =
+    recorded === null || detail.header.lmpEstimated === true
+      ? PATIENT_PAGE_UI.scheduleEstimatedLmp
+      : detail.header.lmpEstimated === false
+        ? PATIENT_PAGE_UI.scheduleRecordedLmp
+        : PATIENT_PAGE_UI.scheduleLmp
+
   if (detail.currentZone === null) {
     return <p className="text-sm text-slate-600">{PATIENT_PAGE_UI.scheduleNoZone}</p>
   }
@@ -251,7 +260,7 @@ function Schedule({ detail }: { detail: PatientDetail }) {
       <VisitSchedule lmpDate={anchor} zone={detail.currentZone} />
       {anchor !== null ? (
         <p className="mt-2 text-xs text-slate-500">
-          {recorded !== null ? PATIENT_PAGE_UI.scheduleRecordedLmp : PATIENT_PAGE_UI.scheduleEstimatedLmp}:{' '}
+          {lmpLabel}:{' '}
           {formatDay(anchor)}
         </p>
       ) : null}

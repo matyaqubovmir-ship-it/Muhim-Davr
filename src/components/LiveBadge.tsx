@@ -1,5 +1,5 @@
 import { REGISTRY_UI } from '../lib/labels'
-import type { LiveStatus } from '../lib/live-assessments'
+import type { LiveStatus } from '../lib/live-changes'
 
 /**
  * Whether this screen is updating itself. When the subscription drops it says

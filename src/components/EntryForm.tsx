@@ -5,7 +5,7 @@ import {
   type FormFieldName,
   type UnscoredField,
 } from '../lib/form-fields'
-import { FIELD_LABELS, FIELD_UNITS, GROUP_TITLES, UI } from '../lib/labels'
+import { FIELD_LABELS, FIELD_UNITS, GROUP_TITLES, PICKER_UI, UI } from '../lib/labels'
 import {
   differsFromExtraction,
   toAssessmentRow,
@@ -25,7 +25,9 @@ import {
   type SavedVisit,
 } from '../lib/visit-followup'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PregnancyChoice } from '../lib/patients'
 import { NumberField } from './NumberField'
+import { PregnancyPicker } from './PregnancyPicker'
 import { TriState } from './TriState'
 
 const UNSCORED: UnscoredField[] = ['edema', 'headache_or_visual']
@@ -35,8 +37,19 @@ function isUnscored(name: FormFieldName): name is UnscoredField {
   return (UNSCORED as FormFieldName[]).includes(name)
 }
 
-export function EntryForm({ onSaved }: { onSaved: (saved: SavedVisit) => void }) {
-  const [pregnancyId, setPregnancyId] = useState('')
+export function EntryForm({
+  onSaved,
+  pregnancy,
+  onPregnancyChange,
+  onCreatePatient,
+}: {
+  onSaved: (saved: SavedVisit) => void
+  /** Who this visit is for. Held by App, so it survives a trip to register a new patient. */
+  pregnancy: PregnancyChoice | null
+  onPregnancyChange: (choice: PregnancyChoice | null) => void
+  onCreatePatient: (typedName: string) => void
+}) {
+  const [pickerInvalid, setPickerInvalid] = useState(false)
   const [numbers, setNumbers] = useState<NumericFormValues>({})
   // Every boolean starts as null: not recorded, until someone records it.
   const [booleans, setBooleans] = useState<BooleanFormValues>({})
@@ -104,8 +117,9 @@ export function EntryForm({ onSaved }: { onSaved: (saved: SavedVisit) => void })
     event.preventDefault()
     setError(null)
 
-    if (pregnancyId.trim() === '') {
-      setError(UI.pregnancyIdRequired)
+    if (pregnancy === null) {
+      setPickerInvalid(true)
+      setError(PICKER_UI.required)
       return
     }
 
@@ -130,7 +144,7 @@ export function EntryForm({ onSaved }: { onSaved: (saved: SavedVisit) => void })
       extracted !== null && differsFromExtraction(extracted, saved, ALL_FIELD_NAMES)
 
     const row = toAssessmentRow(
-      pregnancyId,
+      pregnancy.pregnancyId,
       numbers,
       scoringBooleans,
       unscoredBooleans,
@@ -254,21 +268,15 @@ export function EntryForm({ onSaved }: { onSaved: (saved: SavedVisit) => void })
         ) : null}
       </section>
 
-      <div className="py-2">
-        <label
-          htmlFor="pregnancy-id"
-          className="mb-1.5 block text-sm leading-snug text-slate-800"
-        >
-          {UI.pregnancyIdLabel}
-        </label>
-        <input
-          id="pregnancy-id"
-          value={pregnancyId}
-          onChange={(event) => setPregnancyId(event.target.value)}
-          placeholder={UI.pregnancyIdHint}
-          className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 focus:border-slate-900 focus:outline-none"
-        />
-      </div>
+      <PregnancyPicker
+        value={pregnancy}
+        onChange={(choice) => {
+          onPregnancyChange(choice)
+          if (choice !== null) setPickerInvalid(false)
+        }}
+        onCreateNew={onCreatePatient}
+        invalid={pickerInvalid}
+      />
 
       {FORM_GROUPS.map((group) => (
         <section key={group.id} className="mt-6">

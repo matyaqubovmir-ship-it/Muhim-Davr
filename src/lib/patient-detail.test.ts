@@ -67,6 +67,7 @@ describe('headerFigures', () => {
       gravida: 2,
       para: 1,
       lmpDate: null,
+      lmpEstimated: null,
       eddDate: null,
       isActive: true,
       outcome: null,
@@ -172,6 +173,7 @@ const LIVE_SHAPED = {
     data: {
       id: 'p-1',
       lmp_date: '2026-04-03',
+      lmp_estimated: false,
       edd_date: null,
       gravida: 2,
       para: 1,

@@ -28,9 +28,6 @@ export const UI = {
   save: 'Saqlash',
   saving: 'Saqlanmoqda...',
 
-  pregnancyIdLabel: 'Homiladorlik ID',
-  pregnancyIdHint: 'Ro‘yxatdagi homiladorlik raqami',
-  pregnancyIdRequired: 'Homiladorlik ID kiritilishi shart.',
 
   yes: 'Ha',
   no: 'Yo‘q',
@@ -301,6 +298,75 @@ export const REGISTRY_UI = {
   reconnect: 'Qayta ulanish',
 } as const
 
+/** Registering a patient (/patients/new). */
+export const NEW_PATIENT_UI = {
+  tab: 'Yangi bemor',
+  title: 'Yangi bemor',
+  subtitle: 'Bemor va uning joriy homiladorligi ro‘yxatga olinadi.',
+  fullName: 'F.I.Sh.',
+  birthDate: 'Tug‘ilgan sana',
+  district: 'Tuman',
+  districtHint: 'Yozing yoki ro‘yxatdan tanlang',
+  village: 'Mahalla / qishloq',
+  phone: 'Telefon',
+  optional: 'ixtiyoriy',
+  lmpQuestion: 'Homiladorlik muddati',
+  lmpModeLmp: 'Oxirgi hayz sanasi ma’lum',
+  lmpModeGa: 'Muddati haftada ma’lum',
+  lmpModeUnknown: 'Hozircha noma’lum',
+  lmpDate: 'Oxirgi hayz sanasi',
+  gaWeeks: 'Bugungi muddati',
+  gaWeeksUnit: 'hafta',
+  gaNote: 'Oxirgi hayz sanasi shu muddatdan hisoblanadi va “hisoblangan” deb belgilanadi.',
+  unknownNote: 'Muddat kiritilmasa, ko‘riklar jadvali birinchi baho saqlanganda tuziladi.',
+  submit: 'Ro‘yxatga olish',
+  submitting: 'Saqlanmoqda...',
+  failed: 'Bemor ro‘yxatga olinmadi.',
+  createdTitle: 'Bemor ro‘yxatga olindi',
+  recordVisit: 'Ko‘rik kiritish',
+  openPatient: 'Bemor sahifasi',
+  another: 'Yana bemor qo‘shish',
+  errName: 'To‘liq ismni kiriting.',
+  errBirthDate: 'Tug‘ilgan sanani tekshiring (10–60 yosh).',
+  errDistrict: 'Tumanni kiriting.',
+  errPhone: 'Telefon raqamini tekshiring.',
+  errLmp: 'Sanani tekshiring: kelajakda yoki 45 haftadan oldin bo‘lishi mumkin emas.',
+  errGa: 'Muddatni 1 dan 45 gacha butun hafta bilan kiriting.',
+} as const
+
+/** Choosing the patient on the entry form. */
+export const PICKER_UI = {
+  label: 'Bemor',
+  placeholder: 'Ism bo‘yicha qidiring',
+  searching: 'Qidirilmoqda...',
+  noMatch: 'Topilmadi.',
+  searchFailed: 'Qidiruv ishlamadi.',
+  createNew: 'Yangi bemor qo‘shish',
+  change: 'O‘zgartirish',
+  required: 'Bemorni tanlang.',
+} as const
+
+/**
+ * The demo role switch. It changes which tabs are shown and nothing else: it
+ * is not a login and not a permission. See README and src/lib/supabase.ts.
+ */
+export const ROLE_UI = {
+  label: 'Rol',
+  midwife: 'Akusherka',
+  specialist: 'OvaBMU mutaxassisi',
+  note: 'Namoyish uchun: faqat menyuni o‘zgartiradi, ruxsat emas.',
+} as const
+
+/** A new escalation arriving on a specialist's screen. */
+export const ALERT_UI = {
+  newEscalation: 'Yangi yo‘llanma',
+  open: 'Navbatni ochish',
+  dismiss: 'Yopish',
+  openCount: 'ochiq yo‘llanma',
+  soundOn: 'Ovoz yoqilgan',
+  soundOff: 'Ovoz o‘chirilgan',
+} as const
+
 /** The patient page (/patients/:pregnancyId). */
 export const PATIENT_PAGE_UI = {
   loading: 'Yuklanmoqda...',
@@ -346,6 +412,7 @@ export const PATIENT_PAGE_UI = {
 
   scheduleRecordedLmp: 'Oxirgi hayz sanasi (qayd etilgan)',
   scheduleEstimatedLmp: 'Oxirgi hayz sanasi (homiladorlik muddatidan hisoblangan)',
+  scheduleLmp: 'Oxirgi hayz sanasi',
   scheduleNoZone: 'Ko‘riklar jadvali zonaga bog‘liq; bu homiladorlik hali baholanmagan.',
 
   telegramTitle: 'Bemorning Telegram xabarlari',

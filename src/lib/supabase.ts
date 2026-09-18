@@ -14,6 +14,10 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
  * a valid user, and a cleared browser becomes a new one. When real accounts
  * arrive they replace only what happens in this file. The policies already
  * target authenticated users, so no schema change is needed then.
+ *
+ * THE ROLE SWITCH IS NOT A STAND-IN FOR ROLES EITHER. The header's "Akusherka"
+ * / "OvaBMU mutaxassisi" choice (src/lib/role.ts) only picks which tabs show.
+ * Every session here reaches the same data with the same rights. See README.
  */
 
 let client: SupabaseClient | null = null
