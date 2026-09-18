@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/*
+ * A row or card whose numbers just changed under a live update: one brief
+ * amber ring that fades out. Motion only where something actually changed.
+ */
+@keyframes changed-flash {
+  from {
+    box-shadow: 0 0 0 3px #f59e0b;
+    background-color: #fffbeb;
+  }
+  to {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.changed-flash {
+  animation: changed-flash 2.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .changed-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px #f59e0b;
+  }
+}

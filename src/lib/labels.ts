@@ -272,6 +272,110 @@ export const LINK_CODE_UI = {
     'Kod ko‘rsatilmadi: homiladorlik ID to‘g‘ri formatda emas.',
 } as const
 
+/** The district registry (/registry, /registry/:district). */
+export const REGISTRY_UI = {
+  tab: 'Reyestr',
+  title: 'Tumanlar bo‘yicha reyestr',
+  subtitle: 'Faol homiladorliklar, har birining joriy zonasi bo‘yicha.',
+  districtSubtitle: 'Faol homiladorliklar zonalar bo‘yicha.',
+  allDistricts: 'Barcha tumanlar',
+  active: 'faol homiladorlik',
+  unassessed: 'Baholanmagan',
+  unassessedNote: 'Hali baho yo‘q — xavf noma’lum, past degani emas.',
+  emptyZone: 'Bu zonada bemor yo‘q.',
+  noDistricts: 'Hozircha faol homiladorlik yo‘q.',
+  noPatients: 'Bu tumanda faol homiladorlik topilmadi.',
+  loadFailed: 'Reyestrni yuklab bo‘lmadi.',
+  retry: 'Qayta urinish',
+  week: 'hafta',
+  dueDate: 'Tug‘ruq',
+  computed: 'hisoblangan',
+  lastVisit: 'Oxirgi ko‘rik',
+  never: 'yo‘q',
+  overdue: 'Ko‘rik muddati o‘tgan',
+  neverSeen: 'Akusherka ko‘rigi qayd etilmagan',
+  notSeenDays: 'kundan beri ko‘rilmagan',
+  live: 'Jonli',
+  connecting: 'Ulanmoqda...',
+  liveDown: 'Jonli yangilanish uzildi',
+  reconnect: 'Qayta ulanish',
+} as const
+
+/** The patient page (/patients/:pregnancyId). */
+export const PATIENT_PAGE_UI = {
+  loading: 'Yuklanmoqda...',
+  notFound: 'Bunday homiladorlik topilmadi.',
+  loadFailed: 'Bemor ma’lumotini yuklab bo‘lmadi.',
+  retry: 'Qayta urinish',
+  age: 'yosh',
+  gravida: 'Gravida',
+  para: 'Para',
+  week: 'hafta',
+  dueDate: 'Tug‘ruq',
+  computed: 'hisoblangan',
+  notAssessed: 'BAHOLANMAGAN',
+  ended: 'Homiladorlik yakunlangan',
+
+  historyTitle: 'Baholar tarixi',
+  bpChart: 'Qon bosimi, mm sim. ust.',
+  hbChart: 'Gemoglobin, g/L',
+  systolic: 'Sistolik',
+  diastolic: 'Diastolik',
+  noBp: 'Qon bosimi hech bir bahoda qayd etilmagan.',
+  noHb: 'Gemoglobin hech bir bahoda qayd etilmagan.',
+  noAssessments: 'Hali baho yo‘q.',
+  chartHint: 'Grafikdagi ustunni yoki jadval qatorini tanlang — o‘sha bahoning omillari ko‘rsatiladi.',
+  score: 'Ball',
+  byMidwife: 'Akusherka',
+  byPatient: 'Bemorning o‘zi (Telegram)',
+  noFactors: 'Xavf omillari aniqlanmagan.',
+  colDate: 'Sana',
+  colZone: 'Zona',
+  colBp: 'Qon bosimi',
+  colHb: 'Gemoglobin',
+  colScore: 'Ball',
+  colBy: 'Kim qayd etgan',
+
+  escalationsTitle: 'Yo‘llanmalar tarixi',
+  noEscalations: 'Yo‘llanma ochilmagan.',
+  created: 'Ochilgan',
+  acknowledged: 'Qabul qilingan',
+  closed: 'Yopilgan',
+  referredTo: 'Yo‘naltirilgan joy',
+  resolution: 'Yakuniy izoh',
+
+  scheduleRecordedLmp: 'Oxirgi hayz sanasi (qayd etilgan)',
+  scheduleEstimatedLmp: 'Oxirgi hayz sanasi (homiladorlik muddatidan hisoblangan)',
+  scheduleNoZone: 'Ko‘riklar jadvali zonaga bog‘liq; bu homiladorlik hali baholanmagan.',
+
+  telegramTitle: 'Bemorning Telegram xabarlari',
+  noReports: 'Bemor hali xabar yubormagan.',
+  escalated: 'Yo‘llanma ochildi',
+} as const
+
+/** How the patient channel triaged each message, for the clinician reading it. */
+export const TRIAGE_LEVEL_LABELS = {
+  immediate: 'Darhol — WHO xavf belgisi',
+  prompt: 'Tez orada ko‘rik',
+  none: 'Ro‘yxatdagi belgi yo‘q',
+} as const
+
+/**
+ * A fired factor or a reported danger sign, as a sentence a clinician reads.
+ * Both kinds of code can sit in one fired_factors list: a patient's own report
+ * carries danger signs next to the point-table factors.
+ */
+export function describeFactor(code: string): string {
+  return (
+    FACTOR_SENTENCES[code as RiskFactor] ?? DANGER_SIGN_NAMES[code as DangerSign] ?? code
+  )
+}
+
+export const NOT_FOUND_UI = {
+  title: 'Sahifa topilmadi.',
+  home: 'Bosh sahifa',
+} as const
+
 /** The doctor's escalation queue. */
 export const QUEUE_UI = {
   tabEntry: 'Yangi qayd',

@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { DangerSign } from '../lib/danger-signs'
 import {
-  DANGER_SIGN_NAMES,
   ESCALATION_SOURCE_LABELS,
   ESCALATION_STATUS_LABELS,
-  FACTOR_SENTENCES,
   QUEUE_UI,
   ZONE_COLORS,
+  describeFactor,
 } from '../lib/labels'
-import type { RiskFactor } from '../lib/risk'
 import { getAuthedSupabase } from '../lib/supabase'
 
 /** More than a district sees in a day; the queue is for what is open now. */
@@ -43,12 +40,6 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null
 }
 
-/** A danger sign or a point-table factor, named for a clinician. */
-function factorName(code: string): string {
-  return (
-    DANGER_SIGN_NAMES[code as DangerSign] ?? FACTOR_SENTENCES[code as RiskFactor] ?? code
-  )
-}
 
 function formatTime(iso: string): string {
   const date = new Date(iso)
@@ -200,7 +191,7 @@ export function EscalationQueue() {
               {row.firedFactors.length > 0 ? (
                 <ul className="mt-1.5 list-inside list-disc text-sm leading-snug text-slate-700">
                   {row.firedFactors.map((code) => (
-                    <li key={code}>{factorName(code)}</li>
+                    <li key={code}>{describeFactor(code)}</li>
                   ))}
                 </ul>
               ) : null}
