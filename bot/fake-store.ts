@@ -21,6 +21,8 @@ export interface FakeStore extends BotStore {
   pregnanciesByCode: Map<string, string[]>
   assessments: Record<string, unknown>[]
   escalations: EscalationRow[]
+  /** Ids of escalations a test has marked as already acknowledged or closed. */
+  settledEscalations: Set<string>
   reports: PatientReportRow[]
   visits: PlannedVisit[]
   claims: Set<string>
@@ -35,6 +37,7 @@ export function createFakeStore(): FakeStore {
     pregnanciesByCode: new Map(),
     assessments: [],
     escalations: [],
+    settledEscalations: new Set(),
     reports: [],
     visits: [],
     claims: new Set(),
@@ -63,6 +66,17 @@ export function createFakeStore(): FakeStore {
       fail('insertEscalation')
       store.escalations.push(row)
       return `escalation-${store.escalations.length}`
+    },
+    async findOpenTelegramEscalation(pregnancyId) {
+      fail('findOpenTelegramEscalation')
+      for (let i = store.escalations.length - 1; i >= 0; i--) {
+        const row = store.escalations[i]
+        const id = `escalation-${i + 1}`
+        if (row.pregnancy_id === pregnancyId && row.source === 'telegram' && !store.settledEscalations.has(id)) {
+          return id
+        }
+      }
+      return null
     },
     async insertReport(row) {
       fail('insertReport')

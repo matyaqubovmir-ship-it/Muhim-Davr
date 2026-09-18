@@ -24,6 +24,7 @@ import { loadBotConfig, type BotConfig } from './config.ts'
 import { extractDangerSigns } from './extract.ts'
 import { handleStart, LinkAttemptLimiter, startArgument } from './linking.ts'
 import { BOT } from './messages.ts'
+import { botIdOf, readOffset, writeOffset } from './offset.ts'
 import { sendDueReminders } from './reminders.ts'
 import { handleSelfReport } from './self-report.ts'
 import { createSupabaseStore, type BotStore } from './store.ts'
@@ -74,8 +75,12 @@ async function replyTo(
   return handleSelfReport(store, extractDangerSigns, channel, text.slice(0, MAX_REPORT_LENGTH))
 }
 
+/** Makes sure the database session is live before a unit of work. See bot/supabase.ts. */
+type EnsureSession = () => Promise<unknown>
+
 async function handleOneMessage(
   store: BotStore,
+  ensureSession: EnsureSession,
   limiter: LinkAttemptLimiter,
   telegram: TelegramClient,
   message: TelegramMessage,
@@ -87,6 +92,7 @@ async function handleOneMessage(
   const chatId = message.chat.id
   let reply: string
   try {
+    await ensureSession()
     reply = await replyTo(store, limiter, message)
   } catch (caught) {
     console.error('[bot] handling chat ' + chatId + ' failed: ' + String(caught))
@@ -102,11 +108,14 @@ async function handleOneMessage(
 
 async function pollUntilStopped(
   store: BotStore,
+  ensureSession: EnsureSession,
   telegram: TelegramClient,
+  botId: string,
   running: () => boolean,
 ): Promise<void> {
   const limiter = new LinkAttemptLimiter()
-  let offset = 0
+  let offset = readOffset(botId)
+  if (offset > 0) console.log('[bot] resuming after update ' + (offset - 1))
 
   while (running()) {
     let updates
@@ -123,9 +132,11 @@ async function pollUntilStopped(
     for (const update of updates) {
       // The offset advances whether or not handling succeeded. A message that
       // reliably throws would otherwise be retried forever and block every
-      // other woman's messages behind it.
+      // other woman's messages behind it. It is saved after handling, so a
+      // crash mid-message handles that message again instead of losing it.
+      if (update.message) await handleOneMessage(store, ensureSession, limiter, telegram, update.message)
       offset = update.update_id + 1
-      if (update.message) await handleOneMessage(store, limiter, telegram, update.message)
+      writeOffset(botId, offset)
     }
   }
 
@@ -141,6 +152,7 @@ async function pollUntilStopped(
 
 function startReminderSweep(
   store: BotStore,
+  ensureSession: EnsureSession,
   telegram: TelegramClient,
   config: BotConfig,
 ): NodeJS.Timeout {
@@ -149,7 +161,8 @@ function startReminderSweep(
     // A slow sweep must not overlap the next one.
     if (sweeping) return
     sweeping = true
-    sendDueReminders(store, telegram)
+    ensureSession()
+      .then(() => sendDueReminders(store, telegram))
       .then((sent) => {
         if (sent > 0) console.log('[bot] sent ' + sent + ' visit reminder(s)')
       })
@@ -168,6 +181,7 @@ function startReminderSweep(
 async function main(): Promise<void> {
   const config = loadBotConfig()
   const store = createSupabaseStore(await getBotSupabase(config))
+  const ensureSession = () => getBotSupabase(config)
   const telegram = createTelegramClient(config.telegramToken, config.pollTimeoutSeconds)
 
   let running = true
@@ -186,7 +200,7 @@ async function main(): Promise<void> {
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
 
-  const timer = startReminderSweep(store, telegram, config)
+  const timer = startReminderSweep(store, ensureSession, telegram, config)
 
   console.log(
     '[bot] polling (auth=' +
@@ -197,7 +211,7 @@ async function main(): Promise<void> {
   )
 
   try {
-    await pollUntilStopped(store, telegram, () => running)
+    await pollUntilStopped(store, ensureSession, telegram, botIdOf(config.telegramToken), () => running)
   } finally {
     clearInterval(timer)
   }

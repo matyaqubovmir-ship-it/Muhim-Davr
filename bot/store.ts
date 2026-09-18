@@ -53,6 +53,8 @@ export interface BotStore {
 
   insertAssessment(row: Record<string, unknown>): Promise<string>
   insertEscalation(row: EscalationRow): Promise<string>
+  /** Her Telegram escalation still waiting for a specialist (ochiq), if one exists. */
+  findOpenTelegramEscalation(pregnancyId: string): Promise<string | null>
   insertReport(row: PatientReportRow): Promise<void>
 
   /** Planned visits on these dates, for active pregnancies only. */
@@ -76,6 +78,9 @@ const UNIQUE_VIOLATION = '23505'
 /** Supabase caps a response at 1000 rows by default; pages stay under it. */
 const PAGE_SIZE = 500
 
+/** Ids per .in() filter, so the request URL stays short. */
+const ID_BATCH = 100
+
 /**
  * A many-to-one embed comes back as an object at runtime, but untyped clients
  * see it as possibly an array. Accept both.
@@ -91,11 +96,15 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
     async findChannel(chatId) {
       const { data, error } = await db
         .from('patient_channels')
-        .select('pregnancy_id')
+        .select('pregnancy_id, pregnancies!patient_channels_pregnancy_id_fkey(is_active)')
         .eq('telegram_chat_id', chatId)
         .maybeSingle()
       if (error) throw new Error(`patient_channels lookup failed: ${error.message}`)
       if (!data) return null
+      // A link to a pregnancy that has ended is no link: her next messages would
+      // be filed under a closed case the registry never shows. She is asked to
+      // link again, with the code for her current pregnancy.
+      if (one(data.pregnancies)?.is_active !== true) return null
       return { pregnancyId: String(data.pregnancy_id), telegramChatId: chatId }
     },
 
@@ -134,6 +143,19 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
       return String(data.id)
     },
 
+    async findOpenTelegramEscalation(pregnancyId) {
+      const { data, error } = await db
+        .from('escalations')
+        .select('id')
+        .eq('pregnancy_id', pregnancyId)
+        .eq('source', 'telegram')
+        .eq('status', 'ochiq')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (error) throw new Error(`open escalation lookup failed: ${error.message}`)
+      return data && data.length > 0 ? String(data[0].id) : null
+    },
+
     async insertReport(row) {
       const { error } = await db.from('patient_reports').insert(row)
       if (error) throw new Error(`patient_reports insert failed: ${error.message}`)
@@ -144,16 +166,25 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
       // !inner so the is_active filter removes the visit, not just the embed. A
       // reminder for a pregnancy that has ended — in a birth or in a loss — is
       // the one message this channel must never send.
-      const { data, error } = await db
-        .from('visits')
-        .select('id, pregnancy_id, target_date, pregnancies!inner(is_active, patients(district))')
-        .eq('status', 'rejalashtirilgan')
-        .in('target_date', [...dates])
-        .eq('pregnancies.is_active', true)
-      if (error) throw new Error(`due visit lookup failed: ${error.message}`)
+      // Paged: a region's day of due visits can pass the 1000 rows a response
+      // holds, and an unpaged sweep would re-read the same first page forever.
+      const rows: Record<string, unknown>[] = []
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await db
+          .from('visits')
+          .select('id, pregnancy_id, target_date, pregnancies!inner(is_active, patients(district))')
+          .eq('status', 'rejalashtirilgan')
+          .in('target_date', [...dates])
+          .eq('pregnancies.is_active', true)
+          .order('id')
+          .range(from, from + PAGE_SIZE - 1)
+        if (error) throw new Error(`due visit lookup failed: ${error.message}`)
+        rows.push(...((data ?? []) as Record<string, unknown>[]))
+        if (!data || data.length < PAGE_SIZE) break
+      }
 
       const visits: PlannedVisit[] = []
-      for (const row of data ?? []) {
+      for (const row of rows) {
         const pregnancy = one(row.pregnancies)
         // Checked again here, not only trusted to the filter above.
         if (pregnancy?.is_active !== true) continue
@@ -173,17 +204,20 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
       const byPregnancy = new Map<string, number[]>()
       if (pregnancyIds.length === 0) return byPregnancy
 
-      const { data, error } = await db
-        .from('patient_channels')
-        .select('pregnancy_id, telegram_chat_id')
-        .in('pregnancy_id', [...pregnancyIds])
-      if (error) throw new Error(`channel lookup failed: ${error.message}`)
-
-      for (const row of data ?? []) {
-        const key = String(row.pregnancy_id)
-        const chats = byPregnancy.get(key) ?? []
-        chats.push(Number(row.telegram_chat_id))
-        byPregnancy.set(key, chats)
+      // Batched: a long id list does not fit in one request URL.
+      const ids = [...pregnancyIds]
+      for (let i = 0; i < ids.length; i += ID_BATCH) {
+        const { data, error } = await db
+          .from('patient_channels')
+          .select('pregnancy_id, telegram_chat_id')
+          .in('pregnancy_id', ids.slice(i, i + ID_BATCH))
+        if (error) throw new Error(`channel lookup failed: ${error.message}`)
+        for (const row of data ?? []) {
+          const key = String(row.pregnancy_id)
+          const chats = byPregnancy.get(key) ?? []
+          chats.push(Number(row.telegram_chat_id))
+          byPregnancy.set(key, chats)
+        }
       }
       return byPregnancy
     },

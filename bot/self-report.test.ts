@@ -98,6 +98,49 @@ describe('handleSelfReport — immediate sign', () => {
     expect(reply).toBe(BOT.reportImmediateNotSaved)
   })
 
+  it('joins a repeat message to her alert that is still waiting, instead of raising another', async () => {
+    const store = createFakeStore()
+    await handleSelfReport(store, extractor({ convulsions: true }), CHANNEL, 'talvasa tutdi')
+    const reply = await handleSelfReport(store, extractor({ convulsions: true }), CHANNEL, 'yana talvasa')
+
+    expect(reply).toBe(BOT.reportImmediate)
+    expect(store.escalations).toHaveLength(1)
+    // Each message is still its own assessment and report, both pointing at the one alert.
+    expect(store.assessments).toHaveLength(2)
+    expect(store.reports.map((r) => r.escalation_id)).toEqual(['escalation-1', 'escalation-1'])
+    expect(store.reports[1].assessment_id).toBe('assessment-2')
+  })
+
+  it('raises a new alert once a specialist has taken the earlier one', async () => {
+    const store = createFakeStore()
+    await handleSelfReport(store, extractor({ convulsions: true }), CHANNEL, 'talvasa tutdi')
+    store.settledEscalations.add('escalation-1')
+    await handleSelfReport(store, extractor({ vaginal_bleeding: true }), CHANNEL, 'qon ketyapti')
+
+    expect(store.escalations).toHaveLength(2)
+    expect(store.reports[1].escalation_id).toBe('escalation-2')
+  })
+
+  it('never joins another woman’s alert', async () => {
+    const store = createFakeStore()
+    await handleSelfReport(store, extractor({ convulsions: true }), CHANNEL, 'talvasa tutdi')
+    await handleSelfReport(
+      store,
+      extractor({ convulsions: true }),
+      { pregnancyId: 'preg-2', telegramChatId: 777 },
+      'talvasa tutdi',
+    )
+    expect(store.escalations.map((e) => e.pregnancy_id)).toEqual(['preg-1', 'preg-2'])
+  })
+
+  it('raises a new alert when the lookup for an open one fails', async () => {
+    const store = createFakeStore()
+    store.failing.add('findOpenTelegramEscalation')
+    await handleSelfReport(store, extractor({ convulsions: true }), CHANNEL, 'talvasa tutdi')
+    await handleSelfReport(store, extractor({ convulsions: true }), CHANNEL, 'yana talvasa')
+    expect(store.escalations).toHaveLength(2)
+  })
+
   it('does not claim the doctor has it when only the escalation failed', async () => {
     const store = createFakeStore()
     store.failing.add('insertEscalation')

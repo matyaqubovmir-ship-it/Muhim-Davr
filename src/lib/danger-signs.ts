@@ -126,7 +126,17 @@ export function dangerSignsToAssessmentValues(
   for (const [sign, column] of Object.entries(DANGER_SIGN_COLUMNS)) {
     const reported = report[sign as DangerSign]
     if (reported === undefined) continue
-    values[column] = reported
+    // A combined sign's "no" is not a "no" for its column. "Headache, but my
+    // eyes are fine" makes severe_headache_with_blurred_vision false while she
+    // plainly has a headache, so headache_or_visual must not be written false.
+    values[column] = COMBINED_SIGNS.has(sign as DangerSign) && reported === false ? null : reported
   }
   return values
 }
+
+/**
+ * Signs that are two findings at once. Only "present" carries over to the
+ * single-finding column they share; "absent" means only that the pair was not
+ * both there.
+ */
+const COMBINED_SIGNS: ReadonlySet<DangerSign> = new Set(['severe_headache_with_blurred_vision'])

@@ -107,7 +107,17 @@ export async function handleSelfReport(
       )
     }
     if (decision.escalate && assessmentId !== null) {
-      escalationId = await store.insertEscalation({
+      // A frightened woman sends the same sign three times in a minute. While
+      // her earlier alert still waits for a specialist, the new message joins
+      // it (through patient_reports.escalation_id) instead of adding cards to
+      // the queue. Once a specialist has taken that alert, a new sign raises a
+      // new one: whoever acknowledged the first may think it is handled. A
+      // failed lookup raises a new one too — a duplicate is the safe error.
+      const existing = await store.findOpenTelegramEscalation(channel.pregnancyId).catch((caught: unknown) => {
+        console.error('[bot] open escalation lookup failed: ' + String(caught))
+        return null
+      })
+      escalationId = existing ?? await store.insertEscalation({
         assessment_id: assessmentId,
         // Copied from the assessment just written. The composite foreign key in
         // 001_schema.sql rejects the insert if these two ever disagree.

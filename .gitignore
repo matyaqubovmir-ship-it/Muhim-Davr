@@ -25,3 +25,6 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Where the Telegram bot resumes polling (bot/offset.ts)
+bot/.poll-offset.json

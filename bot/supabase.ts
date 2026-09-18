@@ -27,8 +27,10 @@ async function signIn(active: SupabaseClient, usingServiceRole: boolean): Promis
   // A service role key is already past RLS; asking it to sign in is meaningless.
   if (usingServiceRole) return
 
-  const { data, error } = await active.auth.getSession()
-  if (error) throw new Error(`Could not read the existing session: ${error.message}`)
+  // getSession refreshes an expired token itself. An error means that refresh
+  // failed for good — the session is gone, and the answer is a new one, not a
+  // bot that fails every query from now until someone restarts it.
+  const { data } = await active.auth.getSession()
   if (data.session) return
 
   const { error: signInError } = await active.auth.signInAnonymously()
@@ -39,6 +41,10 @@ async function signIn(active: SupabaseClient, usingServiceRole: boolean): Promis
  * The only way the bot reaches the database. Resolves once a session exists, so
  * a query cannot run unauthenticated — there is no unauthenticated fallback,
  * for the same reason src/lib/supabase.ts has none.
+ *
+ * Call it before each unit of work, not once at startup. The bot runs for days;
+ * a token refresh that fails while the network is down would otherwise leave it
+ * signed out for good. With a live session this is an in-memory check.
  */
 export async function getBotSupabase(config: BotConfig): Promise<SupabaseClient> {
   if (!client) {
@@ -51,7 +57,7 @@ export async function getBotSupabase(config: BotConfig): Promise<SupabaseClient>
         autoRefreshToken: true,
       },
     })
-    await signIn(client, config.usingServiceRole)
   }
+  await signIn(client, config.usingServiceRole)
   return client
 }
