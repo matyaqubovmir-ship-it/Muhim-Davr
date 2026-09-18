@@ -13,8 +13,8 @@ yomonlashsa, OvaBMU mutaxassislari kech xabar topadi."*
 
 | Who | Where | What they do |
 |---|---|---|
-| **Midwife (akusherka)** | `/entry`, `/patients/new` — phone-first | Registers a woman, types or dictates a visit note, lets the AI fill the form, checks every value, saves. Sees the zone, the factors behind it, the WHO visit schedule and static protocol reminders. |
-| **OvaBMU specialist** | `/dashboard`, `/registry`, `/escalations`, `/patients/:id` | Dashboard of every district; drill-down district → zone → woman; a live alert queue with acknowledge and close; each woman's history, chart, schedule and her own Telegram messages. A toast, badge and sound when an alert opens, and optionally a Telegram message to their own phone. |
+| **Midwife (akusherka)** | `/entry`, `/patients/new`, `/visits` — phone-first | Registers a woman, types a visit note **or photographs a lab sheet / uploads a PDF**, lets the AI fill the form, checks every value, saves. Sees the zone, the factors behind it, the WHO visit schedule and static protocol reminders. Sees who is due today and who is late. |
+| **OvaBMU specialist** | `/dashboard`, `/registry`, `/escalations`, `/visits`, `/patients/:id` | Dashboard of every district; drill-down district → zone → woman; a live alert queue with acknowledge and close; the appointments calendar; each woman's history, chart, stored schedule with the reminders sent, lab documents and her own Telegram messages. A toast, badge and sound when an alert opens, and optionally a Telegram alert and a morning digest on their own phone. |
 | **The pregnant woman** | Telegram only — no app, no password | Links with a six-character code the midwife reads out. Reports how she feels; danger signs reach the specialist's queue. Gets visit reminders two days before and on the morning of each contact. |
 
 ## AI design — what the model does and what it never does
@@ -44,6 +44,20 @@ stored as "measured and normal". From the system prompt:
 > about is not a finding that was ruled out. [...] a skipped test recorded as a
 > negative test can hide a woman who needs urgent care.
 
+The same rules apply to a **photo or PDF of a lab sheet**: the model reads the
+values written on it, never a printed reference range, and leaves unreadable
+handwriting or repeated results empty for the midwife to type. Photos are
+redrawn in the browser (smaller, and without the GPS position a phone photo
+carries); the file is kept with the visit in a private Storage bucket.
+
+**Measured, not assumed.** `npm run eval:ai` runs 23 fixed cases — midwife
+notes in Uzbek and Russian, patient messages — through the real endpoint and
+scores every field. On Claude Haiku 4.5: 23/23 cases and 441/441 fields right
+in two runs, with **zero invented values and zero "not mentioned" reported as
+absent**; median 2.2 s per note. Cases include a test not done, explicit
+negatives, g/dL haemoglobin, half a blood pressure, a plan that is not a
+history, and a note that states nothing at all.
+
 The midwife sees an **AI** badge on every field the model filled and confirms or
 corrects each one before saving; the audit trail keeps the model's raw answer and
 whether she changed it. If the AI is slow (8-second limit), down, or the key is
@@ -71,6 +85,24 @@ medicine — every sentence it can send is a fixed string in `bot/messages.ts`.
 The same path runs when the woman herself reports a danger sign on Telegram;
 the queue marks those as coming from her own phone.
 
+## Appointments — who hears about a visit, and when
+
+The schedule is arithmetic on the LMP (WHO 2016, eight contacts), adjusted by
+zone and stored as rows the whole system reads from:
+
+- **Sariq** adds a contact between each pair from week 26. **Qizil** uses the
+  same weeks, pulls the next contact to today, and adds a **check-up within a
+  week** — a red woman is never left weeks without a date.
+- **The patient** (if linked on Telegram) gets a reminder two days before and on
+  the morning of each contact — or the day before, if the two-day one could not
+  go out. A reminder whose send failed is retried, not lost.
+- **The midwife and specialist** see every planned contact on `/visits`:
+  overdue, today, tomorrow, the next two weeks — red first, and those with no
+  Telegram marked *remind by phone*. With `STAFF_ALERT_CHAT_ID` set, the
+  specialist also gets a **07:00 digest** on Telegram (counts only, no names).
+- The registry flags a woman as overdue once a planned date passes unseen, and
+  flags anyone at 39+ weeks with nothing planned.
+
 ## Run it
 
 ```bash
@@ -78,8 +110,11 @@ npm install
 cp .env.example .env.local        # fill in the Supabase URL and anon key, Anthropic key, bot token
 ```
 
-**Database.** Run each file in `supabase/migrations/` in order (001 → 006) in the
+**Database.** Run each file in `supabase/migrations/` in order (001 → 007) in the
 Supabase SQL editor. Enable anonymous sign-ins (Authentication → Providers).
+007 adds document storage, reminder retries, Tashkent-dated visits and live
+updates for new registrations; the app runs without it, and says so where a
+feature needs it.
 
 ```bash
 npm run dev          # the web app, with /api/extract served locally
@@ -87,6 +122,7 @@ npm run bot          # the Telegram bot — a separate, long-running process
 npm run test:run     # unit tests (vitest)
 npm run lint         # oxlint
 npx tsc -b           # typecheck
+npm run eval:ai      # the AI extraction against 23 fixed cases (live model, a few cents)
 ```
 
 `/api/extract` deploys as a Vercel serverless function (`vercel.json`); set the
@@ -120,7 +156,8 @@ logs what it would send until `STAFF_ALERTS=send` is set. `APP_URL` adds a link.
 ## What is real and what is stubbed
 
 **Real, running on real data:** the rule engine and its tests; AI extraction on
-real Uzbek input with the fallback to typing; the append-only record and its
+real Uzbek and Russian input — typed notes and lab-sheet photos/PDFs — with the
+fallback to typing; the appointments calendar and reminder tracking; the append-only record and its
 database constraints; the district registry, dashboard and queue reading
 Supabase and updating over Realtime; acknowledge/close writes; the patient page;
 patient registration and the name search; the Telegram bot (linking,
