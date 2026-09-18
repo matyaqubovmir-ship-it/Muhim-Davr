@@ -36,6 +36,7 @@ export const UI = {
   incompleteNote: 'Qayd etilmagan ma’lumot — xavf yo‘q degani emas.',
 
   saveFailed: 'Saqlashda xatolik yuz berdi. Qayd saqlanmadi.',
+  authFailed: 'Tizimga kirib bo‘lmadi. Qayd saqlanmadi.',
   savedAs: 'Qayd saqlandi',
 } as const
 

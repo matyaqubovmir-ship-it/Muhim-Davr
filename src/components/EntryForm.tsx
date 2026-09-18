@@ -12,7 +12,8 @@ import {
   type NumericFormValues,
 } from '../lib/assessment-row'
 import { scoreAssessment, type RiskResult } from '../lib/risk'
-import { getSupabase } from '../lib/supabase'
+import { getAuthedSupabase } from '../lib/supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { NumberField } from './NumberField'
 import { TriState } from './TriState'
 
@@ -72,7 +73,18 @@ export function EntryForm({
 
     setSaving(true)
     try {
-      const { data, error: insertError } = await getSupabase()
+      // Sign-in first, as its own step. If it fails the save fails — there is
+      // no unauthenticated retry, because an unauthenticated insert is exactly
+      // what RLS is there to refuse.
+      let client: SupabaseClient
+      try {
+        client = await getAuthedSupabase()
+      } catch (caught) {
+        setError(`${UI.authFailed} (${(caught as Error).message})`)
+        return
+      }
+
+      const { data, error: insertError } = await client
         .from('assessments')
         .insert(row)
         .select('id')
