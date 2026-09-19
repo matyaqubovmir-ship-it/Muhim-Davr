@@ -7,7 +7,16 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { BOT, WORSENS_LINE, formatUzbekDate, reminderMorning, reminderTomorrow, reminderTwoDays } from './messages.ts'
+import {
+  BOT,
+  SURVEY,
+  WORSENS_LINE,
+  formatUzbekDate,
+  missedVisitNotice,
+  reminderMorning,
+  reminderTomorrow,
+  reminderTwoDays,
+} from './messages.ts'
 
 /** Every fixed string, and every reminder as she would receive it. */
 const SAMPLE_DAY = new Date(2026, 8, 20)
@@ -16,6 +25,11 @@ const ALL_STRINGS: [string, string][] = [
   ['reminderTwoDays', reminderTwoDays(SAMPLE_DAY, 'Urganch')],
   ['reminderTomorrow', reminderTomorrow(SAMPLE_DAY, 'Urganch')],
   ['reminderMorning', reminderMorning(SAMPLE_DAY, 'Urganch')],
+  ['missedVisitNotice', missedVisitNotice(SAMPLE_DAY)],
+  ...Object.entries(SURVEY)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .map(([name, text]): [string, string] => [`SURVEY.${name}`, text]),
+  ...Object.entries(SURVEY.questions).map(([name, text]): [string, string] => [`SURVEY.questions.${name}`, text]),
 ]
 
 /** "You're fine", "don't worry", "all normal", "healthy", "no problem"… */
@@ -117,5 +131,33 @@ describe('visit reminders', () => {
 
   it('still say where to go when no district is recorded', () => {
     expect(reminderMorning(date, null)).toContain('Oilaviy poliklinikangizga boring.')
+  })
+})
+
+describe('the notice after a visit nobody recorded', () => {
+  const text = missedVisitNotice(new Date(2026, 8, 18))
+
+  it('says the visit was not recorded, never that she skipped it', () => {
+    expect(text).toContain('18.09.2026, juma')
+    expect(text).toContain('qayd etilmadi')
+    for (const blame of ['o‘tkazib yubordingiz', 'kelmadingiz', 'bormadingiz']) expect(text).not.toContain(blame)
+  })
+
+  it('asks her to call her midwife, and gives the ambulance number', () => {
+    expect(text).toContain('akusherkangiz bilan bog‘laning')
+    expect(text).toContain('103')
+  })
+})
+
+describe('the survey', () => {
+  it('asks questions, and every question is a question', () => {
+    for (const [name, question] of Object.entries(SURVEY.questions)) {
+      expect(question.includes('?'), name).toBe(true)
+    }
+  })
+
+  it('only says her answers were passed on in the line used after they were saved', () => {
+    expect(SURVEY.received).toContain('yuborildi')
+    expect(SURVEY.intro).not.toContain('yuborildi')
   })
 })

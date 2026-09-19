@@ -198,3 +198,71 @@ export function reminderMorning(date: Date, district: string | null): string {
     `${destination(district)}\n\n${CANNOT_GO}`
   )
 }
+
+// --- a visit that was not recorded, and the questions after it ------------
+//
+// "NOT RECORDED", NEVER "YOU SKIPPED". The system knows only that no visit was
+// entered for that day; a midwife may have seen her and not typed it in yet.
+// Telling a woman who came that she did not is how she stops trusting the
+// channel, so the notice states the fact the system has and asks her to call.
+
+/** The morning after a planned contact that nobody recorded. */
+export function missedVisitNotice(date: Date): string {
+  return (
+    `${dateWithWeekday(date)} kuni ko‘rigingiz rejalashtirilgan edi, lekin ko‘rik qayd etilmadi.\n\n` +
+    'Iltimos, akusherkangiz bilan bog‘laning va yangi ko‘rik vaqtini belgilang.\n\n' +
+    EMERGENCY_LINE
+  )
+}
+
+/**
+ * The questions. Every yes/no question is one sign from the WHO list in
+ * src/lib/danger-signs.ts, asked in plain words; the answer is that sign's
+ * three-state value and nothing else. Which answers are an emergency is the
+ * list's decision, not this file's — these are only the words.
+ *
+ * The order is bot/survey.ts's. Two are follow-ups, asked only after a "Ha":
+ * severe_abdominal_pain after abdominal_pain, fever_unable_to_rise after fever.
+ */
+export const SURVEY = {
+  yes: 'Ha',
+  no: 'Yo‘q',
+  cannotMeasure: 'O‘lchay olmayman',
+
+  intro:
+    'Akusherkangiz holatingizni bilishi uchun bir nechta qisqa savol beramiz. ' +
+    'Pastdagi tugmalar orqali javob bering.',
+
+  questions: {
+    bp:
+      'Qon bosimingiz hozir qancha? Ikki raqamni yozing, masalan: 120/80.\n\n' +
+      'O‘lchay olmasangiz, pastdagi tugmani bosing.',
+    vaginal_bleeding: 'Qindan qon ketyaptimi?',
+    abdominal_pain: 'Qorningizda og‘riq bormi?',
+    severe_abdominal_pain: 'Qorindagi og‘riq kuchlimi?',
+    severe_headache_with_blurred_vision: 'Kuchli bosh og‘rig‘i va ko‘z oldi xiralashishi bormi?',
+    fast_or_difficult_breathing: 'Nafas olishingiz qiyinlashdimi yoki tezlashdimi?',
+    convulsions: 'Tutqanoq (talvasa) bo‘ldimi?',
+    fever: 'Isitmangiz bormi?',
+    fever_unable_to_rise: 'Isitma tufayli o‘rningizdan tura olmayapsizmi?',
+    swelling_face_hands_legs: 'Yuzingiz, qo‘lingiz yoki oyog‘ingizda shish bormi?',
+    feeling_unwell: 'O‘zingizni yomon his qilyapsizmi?',
+    other:
+      'Yana nima bezovta qilyapti? Yozib yuboring.\n\n' +
+      'Boshqa hech narsa bo‘lmasa, «Yo‘q» tugmasini bosing.',
+  },
+
+  // Two numbers that cannot be a reading — a transposed or missing digit. She
+  // is asked again rather than having a wrong number stored as a measurement.
+  bpNotReadable:
+    'Bu raqamlarni qon bosimi sifatida o‘qiy olmadim. ' +
+    'Iltimos, ikki raqamni yozing, masalan: 120/80.',
+
+  // After something she wrote that was not an answer: it was handled as a
+  // report in its own right, and now the question is asked again.
+  backToQuestions: 'Endi savollarga qaytamiz:',
+
+  // Opens the closing reply in place of BOT.reportReceived. Like that line, it
+  // is only used when her answers were actually written down.
+  received: 'Javoblaringiz qabul qilindi va akusherkangizga yuborildi.',
+} as const

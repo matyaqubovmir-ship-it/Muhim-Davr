@@ -15,7 +15,52 @@ export interface LinkedChannel {
   telegramChatId: number
 }
 
-export type ReminderKind = 'ikki_kun' | 'ertalab'
+/** 'kechikkan' is the morning-after notice for a contact nobody recorded (needs 008). */
+export type ReminderKind = 'ikki_kun' | 'ertalab' | 'kechikkan'
+
+export type SurveyStatus = 'ochiq' | 'yakunlangan' | 'muddati_otgan'
+
+/** A survey still waiting for her next answer (patient_surveys, 008). */
+export interface OpenSurvey {
+  id: string
+  pregnancyId: string
+  telegramChatId: number
+  visitId: string | null
+  /** The question she is being asked now. */
+  step: string
+  /** Only what she answered: a missing key is a question never answered. */
+  answers: Record<string, unknown>
+}
+
+export interface NewSurvey {
+  pregnancyId: string
+  telegramChatId: number
+  visitId: string | null
+  step: string
+  expiresAt: Date
+}
+
+export interface SurveyClose {
+  status: Exclude<SurveyStatus, 'ochiq'>
+  answers: Record<string, unknown>
+  /** Null when nothing she answered was written as a report. */
+  triageLevel: 'immediate' | 'prompt' | 'none' | null
+  escalationId: string | null
+}
+
+/** A closed survey, as much of it as the specialist's summary carries. */
+export interface FinishedSurvey {
+  id: string
+  /** As Postgres returned it: the watermark survey summaries resume from. */
+  finishedAt: string
+  status: Exclude<SurveyStatus, 'ochiq'>
+  pregnancyId: string
+  district: string | null
+  /** The contact that was not recorded, YYYY-MM-DD, if its row still exists. */
+  visitDate: string | null
+  answers: Record<string, unknown>
+  escalationId: string | null
+}
 
 export interface PlannedVisit {
   visitId: string
@@ -91,6 +136,46 @@ export interface BotStore {
   latestEscalationCreatedAt(): Promise<string | null>
   /** Escalations still open (ochiq) created after `after`, oldest first. */
   openEscalationsAfter(after: string | null, limit: number): Promise<OpenEscalation[]>
+
+  // --- the survey after a contact nobody recorded (needs 008) ---------------
+
+  findOpenSurvey(chatId: number): Promise<OpenSurvey | null>
+  /** Starts one. Null if this chat already has one open — one conversation at a time. */
+  createSurvey(survey: NewSurvey): Promise<string | null>
+  /** Records her latest answer and the next question, while the survey is still open. */
+  saveSurveyProgress(id: string, step: string, answers: Record<string, unknown>): Promise<void>
+  /** Closes it. A survey already closed is left as it was. */
+  closeSurvey(id: string, close: SurveyClose): Promise<void>
+  /** Open surveys whose time ran out before `now`, oldest first. */
+  expiredSurveys(now: Date, limit: number): Promise<OpenSurvey[]>
+
+  /** finished_at of the newest closed survey, or null with none: where survey summaries start. */
+  latestSurveyFinishedAt(): Promise<string | null>
+  /** Surveys closed after `after`, oldest first. */
+  finishedSurveysAfter(after: string | null, limit: number): Promise<FinishedSurvey[]>
+
+  /** The specialist's notice about one contact, claimed like a reminder. False if already sent. */
+  claimStaffVisitAlert(visitId: string, chatId: number): Promise<boolean>
+  releaseStaffVisitAlert(visitId: string, chatId: number): Promise<void>
+}
+
+/** An error naming a table or enum value from 008 almost always means 008 was not applied yet. */
+function migrationHint(message: string): string {
+  return /patient_surveys|staff_visit_alerts|kechikkan/.test(message)
+    ? `${message} — apply supabase/migrations/008_missed_visit_survey.sql`
+    : message
+}
+
+function toSurvey(row: Record<string, unknown>): OpenSurvey {
+  const answers = row.answers
+  return {
+    id: String(row.id),
+    pregnancyId: String(row.pregnancy_id),
+    telegramChatId: Number(row.telegram_chat_id),
+    visitId: typeof row.visit_id === 'string' ? row.visit_id : null,
+    step: String(row.step),
+    answers: typeof answers === 'object' && answers !== null && !Array.isArray(answers) ? (answers as Record<string, unknown>) : {},
+  }
 }
 
 /** Postgres unique_violation: the row is already there. */
@@ -252,7 +337,7 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
       // Anything else is a fault, not a duplicate. Treating it as "already
       // sent" would silently stop every reminder the moment, say, a policy
       // started refusing the insert.
-      throw new Error(`reminder claim failed: ${error.message}`)
+      throw new Error(migrationHint(`reminder claim failed: ${error.message}`))
     },
 
     async releaseReminder(visitId, chatId, kind) {
@@ -363,6 +448,129 @@ export function createSupabaseStore(db: SupabaseClient): BotStore {
           district: typeof patient?.district === 'string' ? patient.district : null,
         }
       })
+    },
+
+    async findOpenSurvey(chatId) {
+      const { data, error } = await db
+        .from('patient_surveys')
+        .select('id, pregnancy_id, telegram_chat_id, visit_id, step, answers')
+        .eq('telegram_chat_id', chatId)
+        .eq('status', 'ochiq')
+        .maybeSingle()
+      if (error) throw new Error(migrationHint(`open survey lookup failed: ${error.message}`))
+      return data ? toSurvey(data as Record<string, unknown>) : null
+    },
+
+    async createSurvey(survey) {
+      const { data, error } = await db
+        .from('patient_surveys')
+        .insert({
+          pregnancy_id: survey.pregnancyId,
+          telegram_chat_id: survey.telegramChatId,
+          visit_id: survey.visitId,
+          step: survey.step,
+          answers: {},
+          expires_at: survey.expiresAt.toISOString(),
+        })
+        .select('id')
+        .single()
+      if (!error) return String(data.id)
+      // patient_surveys_one_open_per_chat: she is already in one.
+      if (error.code === UNIQUE_VIOLATION) return null
+      throw new Error(migrationHint(`survey insert failed: ${error.message}`))
+    },
+
+    async saveSurveyProgress(id, step, answers) {
+      const { error } = await db
+        .from('patient_surveys')
+        .update({ step, answers })
+        .eq('id', id)
+        .eq('status', 'ochiq')
+      if (error) throw new Error(`survey update failed: ${error.message}`)
+    },
+
+    async closeSurvey(id, close) {
+      const { error } = await db
+        .from('patient_surveys')
+        .update({
+          status: close.status,
+          answers: close.answers,
+          triage_level: close.triageLevel,
+          escalation_id: close.escalationId,
+          finished_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('status', 'ochiq')
+      if (error) throw new Error(`survey close failed: ${error.message}`)
+    },
+
+    async expiredSurveys(now, limit) {
+      const { data, error } = await db
+        .from('patient_surveys')
+        .select('id, pregnancy_id, telegram_chat_id, visit_id, step, answers')
+        .eq('status', 'ochiq')
+        .lt('expires_at', now.toISOString())
+        .order('expires_at', { ascending: true })
+        .limit(limit)
+      if (error) throw new Error(migrationHint(`expired survey lookup failed: ${error.message}`))
+      return ((data ?? []) as Record<string, unknown>[]).map(toSurvey)
+    },
+
+    async latestSurveyFinishedAt() {
+      const { data, error } = await db
+        .from('patient_surveys')
+        .select('finished_at')
+        .not('finished_at', 'is', null)
+        .order('finished_at', { ascending: false })
+        .limit(1)
+      if (error) throw new Error(migrationHint(`latest survey lookup failed: ${error.message}`))
+      return data && data.length > 0 ? String(data[0].finished_at) : null
+    },
+
+    async finishedSurveysAfter(after, limit) {
+      let query = db
+        .from('patient_surveys')
+        .select(
+          'id, finished_at, status, answers, escalation_id, pregnancy_id, visits(target_date), pregnancies!patient_surveys_pregnancy_id_fkey(patients(district))',
+        )
+        .not('finished_at', 'is', null)
+        .order('finished_at', { ascending: true })
+        .limit(limit)
+      if (after !== null) query = query.gt('finished_at', after)
+      const { data, error } = await query
+      if (error) throw new Error(migrationHint(`finished survey lookup failed: ${error.message}`))
+      return ((data ?? []) as Record<string, unknown>[]).map((row) => {
+        const district = one(one(row.pregnancies)?.patients)?.district
+        const visitDate = one(row.visits)?.target_date
+        return {
+          id: String(row.id),
+          finishedAt: String(row.finished_at),
+          status: row.status === 'muddati_otgan' ? 'muddati_otgan' : 'yakunlangan',
+          pregnancyId: String(row.pregnancy_id),
+          district: typeof district === 'string' ? district : null,
+          visitDate: typeof visitDate === 'string' ? visitDate : null,
+          answers: toSurvey({ ...row, step: '' }).answers,
+          escalationId: typeof row.escalation_id === 'string' ? row.escalation_id : null,
+        }
+      })
+    },
+
+    async claimStaffVisitAlert(visitId, chatId) {
+      const { error } = await db
+        .from('staff_visit_alerts')
+        .insert({ visit_id: visitId, telegram_chat_id: chatId })
+      if (!error) return true
+      if (error.code === UNIQUE_VIOLATION) return false
+      throw new Error(migrationHint(`staff visit alert claim failed: ${error.message}`))
+    },
+
+    async releaseStaffVisitAlert(visitId, chatId) {
+      const { error } = await db
+        .from('staff_visit_alerts')
+        .delete()
+        .eq('visit_id', visitId)
+        .eq('telegram_chat_id', chatId)
+      if (error) throw new Error(`staff visit alert release failed: ${error.message}`)
     },
   }
 }

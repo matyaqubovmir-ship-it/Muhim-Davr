@@ -10,6 +10,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { RiskZone } from './risk'
 import { addDays, formatISODate, parseISODate, startOfDay } from './schedule'
 
+/** The kinds visit_reminders records: two before a contact (003), one after an unrecorded one (008). */
+export type SentReminderKind = 'ikki_kun' | 'ertalab' | 'kechikkan'
+
+/** A visit_reminders.kind as read from the database; anything else is ignored rather than guessed. */
+export function sentReminderKind(value: unknown): SentReminderKind | null {
+  return value === 'ikki_kun' || value === 'ertalab' || value === 'kechikkan' ? value : null
+}
+
 /** How far ahead the calendar looks. */
 export const CALENDAR_DAYS_AHEAD = 14
 /** How far back an unattended planned contact is still shown as overdue. */
@@ -25,7 +33,7 @@ export interface CalendarVisit {
   targetDate: Date
   zone: RiskZone | null
   hasTelegram: boolean
-  remindersSent: ('ikki_kun' | 'ertalab')[]
+  remindersSent: SentReminderKind[]
 }
 
 export type CalendarGroup = 'overdue' | 'today' | 'tomorrow' | 'thisWeek' | 'later'
@@ -120,11 +128,11 @@ export async function loadVisitCalendar(client: SupabaseClient, today: Date = ne
 
   const zoneOf = new Map(zones.map((z) => [String(z.pregnancy_id), z.risk_zone as RiskZone]))
   const linked = new Set(channels.map((c) => String(c.pregnancy_id)))
-  const sent = new Map<string, ('ikki_kun' | 'ertalab')[]>()
+  const sent = new Map<string, SentReminderKind[]>()
   for (const r of reminders) {
     const kinds = sent.get(String(r.visit_id)) ?? []
-    const kind = r.kind === 'ertalab' ? 'ertalab' : 'ikki_kun'
-    if (!kinds.includes(kind)) kinds.push(kind)
+    const kind = sentReminderKind(r.kind)
+    if (kind !== null && !kinds.includes(kind)) kinds.push(kind)
     sent.set(String(r.visit_id), kinds)
   }
 

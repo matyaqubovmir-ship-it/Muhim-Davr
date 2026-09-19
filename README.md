@@ -103,6 +103,32 @@ zone and stored as rows the whole system reads from:
 - The registry flags a woman as overdue once a planned date passes unseen, and
   flags anyone at 39+ weeks with nothing planned.
 
+### A contact nobody recorded — the next morning (needs migration 008)
+
+From **09:00 the day after** a planned contact with no visit entered:
+
+- **The specialist** (with `STAFF_ALERT_CHAT_ID`) gets one Telegram message per
+  contact: district, date, and whether she is on Telegram or must be phoned.
+  Dry run unless `STAFF_ALERTS=send`, like every staff alert; no names.
+- **The patient** (if linked) is told the visit *was not recorded* — never that
+  she skipped it: the system only knows nothing was entered — and asked to call
+  her midwife. The same message opens a **so‘rovnoma** answered with buttons:
+  blood pressure (or *O‘lchay olmayman*), then each WHO danger sign as Ha / Yo‘q
+  (*is the pain severe?* and *can you get up?* only after a "Ha"), then anything
+  else in her own words.
+- **Every answer goes through the same rules as a typed report** — the WHO list
+  and the point table, no model. A "Ha" to an emergency sign, or a reading of
+  160/110+, ends the survey at once with the go-now reply and raises the red
+  alert. A message that is not an answer is triaged as an ordinary report, then
+  the question is asked again. Unanswered stays *javob berilmadi*, never "no".
+- **Her answers** land on her patient page as one report (with an assessment
+  when she gave a reading), and the specialist gets a Telegram summary unless a
+  red alert already covered them. A survey unfinished after 24 hours is closed
+  with whatever she answered.
+
+The visit itself is **not** marked missed (see 004): it stays planned until a
+midwife records it or the schedule is rewritten.
+
 ## Run it
 
 ```bash
@@ -110,11 +136,12 @@ npm install
 cp .env.example .env.local        # fill in the Supabase URL and anon key, Anthropic key, bot token
 ```
 
-**Database.** Run each file in `supabase/migrations/` in order (001 → 007) in the
+**Database.** Run each file in `supabase/migrations/` in order (001 → 008) in the
 Supabase SQL editor. Enable anonymous sign-ins (Authentication → Providers).
 007 adds document storage, reminder retries, Tashkent-dated visits and live
 updates for new registrations; the app runs without it, and says so where a
-feature needs it.
+feature needs it. 008 adds the next-morning follow-up and survey above; without
+it the bot runs as before and logs that 008 is missing.
 
 ```bash
 npm run dev          # the web app, with /api/extract served locally

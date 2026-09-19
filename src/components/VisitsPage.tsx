@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { REGISTRY_UI, VISITS_UI } from '../lib/labels'
+import { REGISTRY_UI, reminderKindLabel, VISITS_UI } from '../lib/labels'
 import { useLatestOnly } from '../lib/latest-only'
 import { REFRESH_DELAY_MS, useLiveChanges } from '../lib/live-changes'
 import type { PregnancyChoice } from '../lib/patients'
@@ -37,7 +37,7 @@ function ReminderStatus({ visit, days }: { visit: CalendarVisit; days: number })
       <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[11px] leading-snug font-semibold text-sky-800 ring-1 ring-sky-200">
         <SendIcon size={11} />
         {VISITS_UI.remindersSent}:{' '}
-        {visit.remindersSent.map((k) => (k === 'ikki_kun' ? VISITS_UI.reminderTwoDays : VISITS_UI.reminderMorning)).join(', ')}
+        {visit.remindersSent.map(reminderKindLabel).join(', ')}
       </span>
     )
   }

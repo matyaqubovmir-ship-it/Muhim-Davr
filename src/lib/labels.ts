@@ -489,6 +489,40 @@ export const STAFF_ALERT = {
   digestOverdue: (n: number) => `Muddati o‘tgan (ko‘rik kiritilmagan): ${n}`,
   digestOpen: 'Kalendar',
   noNames: 'Bemor ismlari Telegramda yuborilmaydi.',
+
+  // The morning after a planned contact nobody recorded (bot/staff-alerts.ts).
+  // "Not recorded", not "missed": the system cannot tell whether she came.
+  missedTitle: 'Muhim Davr — ko‘rik qayd etilmadi',
+  missedDate: (date: string) => `Rejadagi sana: ${date}`,
+  missedTelegram: 'Telegram: ulangan — bemorga eslatma va so‘rovnoma yuboriladi.',
+  missedNoTelegram: 'Telegram: ulanmagan — telefon orqali bog‘lanish kerak.',
+  missedAction: 'Iltimos, bemor bilan bog‘lanib, yangi ko‘rik vaqtini belgilang.',
+
+  // Her answers to the questions that follow. A survey that raised an
+  // escalation is not summarised here: the red alert above already went out.
+  surveyTitle: 'Muhim Davr — so‘rovnoma javoblari',
+  surveyExpiredTitle: 'Muhim Davr — so‘rovnoma tugallanmadi (24 soat)',
+  surveyVisit: (date: string) => `Qayd etilmagan ko‘rik: ${date}`,
+} as const
+
+/**
+ * Her survey answers, as the specialist reads them — on the patient page, where
+ * they are stored as one patient_reports row, and in the Telegram summary.
+ * Every line is what she answered or that she did not answer; none of it is a
+ * judgement. The sign names are DANGER_SIGN_NAMES above.
+ */
+export const SURVEY_SUMMARY = {
+  heading: 'So‘rovnoma (ko‘rik qayd etilmaganidan keyin):',
+  headingExpired: 'So‘rovnoma — tugallanmagan, 24 soat ichida javob berilmadi:',
+  bp: 'Qon bosimi (uyda o‘lchangan)',
+  bpCannotMeasure: 'o‘lchay olmadi',
+  yes: 'ha',
+  no: 'yo‘q',
+  noAnswer: 'javob berilmadi',
+  other: 'Qo‘shimcha',
+  otherNone: 'yo‘q',
+  // Her own words stay out of the Telegram summary, like her name does.
+  otherInApp: 'yozgan — ilovada o‘qing',
 } as const
 
 /**
@@ -520,6 +554,8 @@ export const VISITS_UI = {
   fulfilledToday: 'Bugungi ko‘rik bilan bajarildi',
   reminderTwoDays: '2 kun oldin',
   reminderMorning: 'ertalab',
+  // The morning after, when the contact was not recorded (bot/missed-visits.ts).
+  reminderMissed: 'ertasi kuni — qayd etilmagani haqida',
   remindersSent: 'Eslatma yuborildi',
   reminderWillSend: 'Telegram eslatmasi yuboriladi',
   noTelegram: 'Telegram ulanmagan — telefon orqali eslating',
@@ -531,6 +567,11 @@ export const VISITS_UI = {
   inDays: (n: number) => (n === 1 ? 'ertaga' : `${n} kundan keyin`),
   week: 'hafta',
 } as const
+
+/** A visit_reminders kind (003, 008) as the calendar and the patient page name it. */
+export function reminderKindLabel(kind: 'ikki_kun' | 'ertalab' | 'kechikkan'): string {
+  return kind === 'ikki_kun' ? VISITS_UI.reminderTwoDays : kind === 'ertalab' ? VISITS_UI.reminderMorning : VISITS_UI.reminderMissed
+}
 
 /** The sentence under a number box that cannot be saved (field-rules.ts). */
 export function numberProblemText(problem: NumberProblem): string {

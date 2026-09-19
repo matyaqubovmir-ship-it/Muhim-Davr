@@ -18,10 +18,13 @@
  * writes fail she still gets it, without the claim that anyone was told.
  */
 
+import type { DangerSignReport } from '../src/lib/danger-signs.ts'
 import {
   decidePatientReport,
   patientAssessmentRow,
   patientEscalationReason,
+  type HomeBloodPressure,
+  type PatientReportDecision,
   type ReplyLevel,
 } from '../src/lib/patient-report.ts'
 import type { ExtractDangerSigns } from './extract.ts'
@@ -45,7 +48,12 @@ export interface ReplyContext {
  * reply ends on the instruction to go, with the medicine line after it so a
  * question about tablets can never be what she reads first.
  */
-export function composeReportReply(level: ReplyLevel, context: ReplyContext): string {
+export function composeReportReply(
+  level: ReplyLevel,
+  context: ReplyContext,
+  /** The opening line when it was saved. The survey's closing reply passes its own. */
+  received: string = BOT.reportReceived,
+): string {
   const medicine = context.asksMedicine ? [BOT.medicineRefusal] : []
 
   if (level === 'immediate') {
@@ -55,45 +63,32 @@ export function composeReportReply(level: ReplyLevel, context: ReplyContext): st
 
   if (!context.saved) return [BOT.reportFailed, ...medicine].join('\n\n')
 
-  const parts: string[] = [BOT.reportReceived]
+  const parts: string[] = [received]
   if (level === 'prompt') parts.push(BOT.promptVisit)
   if (context.bpRecorded) parts.push(BOT.bpRecorded)
   parts.push(...medicine, WORSENS_LINE)
   return parts.join('\n\n')
 }
 
-/** Handles one self-report. Returns the reply to send. */
-export async function handleSelfReport(
+export interface RecordedReport {
+  decision: PatientReportDecision
+  /** Every row this report needed was written. */
+  saved: boolean
+  assessmentId: string | null
+  escalationId: string | null
+}
+
+/**
+ * Decides and writes one report: what she wrote in her own words, or her
+ * answers to the survey (bot/survey.ts). The decision is decidePatientReport's
+ * alone — this function only writes down what it decided.
+ */
+export async function recordPatientReport(
   store: BotStore,
-  extract: ExtractDangerSigns,
   channel: LinkedChannel,
-  text: string,
-): Promise<string> {
-  const asksMedicine = asksAboutMedicine(text)
-  const extraction = await extract(text)
-
-  if (extraction === null) {
-    // The model step failed. Her words still have to reach a person, so the row
-    // is written with no extraction and a 'none' level — and the reply says it
-    // could not be processed, not that it was passed on as normal.
-    await store
-      .insertReport({
-        pregnancy_id: channel.pregnancyId,
-        telegram_chat_id: channel.telegramChatId,
-        message_text: text,
-        extracted_json: null,
-        triage_level: 'none',
-        matched_signs: [],
-        assessment_id: null,
-        escalation_id: null,
-      })
-      .catch((caught: unknown) => {
-        console.error('[bot] could not record an unprocessed report: ' + String(caught))
-      })
-    return composeReportReply('none', { saved: false, bpRecorded: false, asksMedicine })
-  }
-
-  const { signs, bp, raw } = extraction
+  report: { text: string; signs: DangerSignReport; bp: HomeBloodPressure | null; raw: unknown },
+): Promise<RecordedReport> {
+  const { text, signs, bp, raw } = report
   const decision = decidePatientReport(signs, bp)
 
   let assessmentId: string | null = null
@@ -150,9 +145,71 @@ export async function handleSelfReport(
     saved = false
   }
 
-  return composeReportReply(decision.reply, {
-    saved,
-    bpRecorded: bp !== null,
-    asksMedicine,
-  })
+  return { decision, saved, assessmentId, escalationId }
+}
+
+/** What handling one free-text report came to: the reply, and enough to act on it. */
+export interface SelfReportOutcome {
+  reply: string
+  /** Which fixed reply she got. Null when the message could not be processed at all. */
+  level: ReplyLevel | null
+  escalationId: string | null
+}
+
+/** Handles one self-report. Returns the reply to send. */
+export async function handleSelfReport(
+  store: BotStore,
+  extract: ExtractDangerSigns,
+  channel: LinkedChannel,
+  text: string,
+): Promise<string> {
+  return (await handleSelfReportDetailed(store, extract, channel, text)).reply
+}
+
+export async function handleSelfReportDetailed(
+  store: BotStore,
+  extract: ExtractDangerSigns,
+  channel: LinkedChannel,
+  text: string,
+): Promise<SelfReportOutcome> {
+  const asksMedicine = asksAboutMedicine(text)
+  const extraction = await extract(text)
+
+  if (extraction === null) {
+    // The model step failed. Her words still have to reach a person, so the row
+    // is written with no extraction and a 'none' level — and the reply says it
+    // could not be processed, not that it was passed on as normal.
+    await store
+      .insertReport({
+        pregnancy_id: channel.pregnancyId,
+        telegram_chat_id: channel.telegramChatId,
+        message_text: text,
+        extracted_json: null,
+        triage_level: 'none',
+        matched_signs: [],
+        assessment_id: null,
+        escalation_id: null,
+      })
+      .catch((caught: unknown) => {
+        console.error('[bot] could not record an unprocessed report: ' + String(caught))
+      })
+    return {
+      reply: composeReportReply('none', { saved: false, bpRecorded: false, asksMedicine }),
+      level: null,
+      escalationId: null,
+    }
+  }
+
+  const { signs, bp, raw } = extraction
+  const recorded = await recordPatientReport(store, channel, { text, signs, bp, raw })
+
+  return {
+    reply: composeReportReply(recorded.decision.reply, {
+      saved: recorded.saved,
+      bpRecorded: bp !== null,
+      asksMedicine,
+    }),
+    level: recorded.decision.reply,
+    escalationId: recorded.escalationId,
+  }
 }

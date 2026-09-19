@@ -2,12 +2,15 @@
  * ONA — the patient's Telegram channel.
  *
  * She has no app and no password. This process is the whole of her interface,
- * and it does exactly four things:
+ * and it does exactly these things:
  *
  *   1  linking        /start <code> ties this chat to her pregnancy
  *   2  self-report    what she writes is triaged against the WHO danger signs
  *   3  reminders      two days before and on the morning of each contact
  *   4  announcements  a district-wide message, sent by bot/broadcast.ts
+ *   5  staff alerts   the specialist's own Telegram (bot/staff-alerts.ts)
+ *   6  after a contact nobody recorded: a notice and a fixed list of questions,
+ *                     answered with buttons (bot/missed-visits.ts, bot/survey.ts)
  *
  * AND NOTHING ELSE. It does not diagnose, it does not reassure, and it does not
  * answer a question about medicine — protocol reminders live on the doctor's
@@ -24,13 +27,15 @@ import { loadBotConfig, type BotConfig } from './config.ts'
 import { extractDangerSigns } from './extract.ts'
 import { handleStart, LinkAttemptLimiter, startArgument } from './linking.ts'
 import { BOT } from './messages.ts'
+import { sendMissedVisitNotices } from './missed-visits.ts'
 import { botIdOf, readOffset, writeOffset } from './offset.ts'
 import { sendDueReminders } from './reminders.ts'
 import { handleSelfReport } from './self-report.ts'
 import { createStaffAlerter, loadStaffAlertConfig, type StaffAlertConfig } from './staff-alerts.ts'
-import { createSupabaseStore, type BotStore } from './store.ts'
+import { createSupabaseStore, type BotStore, type OpenSurvey } from './store.ts'
 import { getBotSupabase } from './supabase.ts'
-import { createTelegramClient, type TelegramClient, type TelegramMessage } from './telegram.ts'
+import { expireSurveys, handleSurveyMessage } from './survey.ts'
+import { createTelegramClient, type Outgoing, type TelegramClient, type TelegramMessage } from './telegram.ts'
 
 /** How long to wait after a failed poll before trying again. */
 const POLL_BACKOFF_MS = 5000
@@ -43,37 +48,60 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Her open survey, if she has one. A failed lookup — 008 not applied yet, the
+ * database down — means no survey: her message is then handled as a report,
+ * which is the safe way to be wrong. It must never be the reason she gets no
+ * reply.
+ */
+async function openSurvey(store: BotStore, chatId: number): Promise<OpenSurvey | null> {
+  try {
+    return await store.findOpenSurvey(chatId)
+  } catch (caught) {
+    console.error('[bot] survey lookup failed, handling as a report: ' + String(caught))
+    return null
+  }
+}
+
+/**
  * Works out the reply to one message.
  *
  * /start is the only command. Anything else she writes is a report about how
  * she feels, which is the honest reading: she is a patient writing to her
- * midwife, not a user operating a menu.
+ * midwife, not a user operating a menu. The one exception is a survey she is in
+ * the middle of, where her message is first read as an answer.
  */
 async function replyTo(
   store: BotStore,
   limiter: LinkAttemptLimiter,
   message: TelegramMessage,
-): Promise<string> {
+): Promise<Outgoing[]> {
   const chatId = message.chat.id
   const text = (message.text ?? message.caption ?? '').trim()
 
   const argument = startArgument(text)
-  if (argument !== null) return handleStart(store, limiter, chatId, argument)
+  if (argument !== null) return [{ text: await handleStart(store, limiter, chatId, argument) }]
 
   // Everything past this point is about her pregnancy, so it needs a link first.
   const channel = await store.findChannel(chatId)
-  if (channel === null) return BOT.notLinked
+  if (channel === null) return [{ text: BOT.notLinked }]
 
   // Voice notes are not transcribed anywhere in this system. Telling her it was
   // received would be a lie capable of burying a danger sign.
-  if (message.voice) return BOT.voiceNotSupported
+  if (message.voice) return [{ text: BOT.voiceNotSupported }]
 
-  if (text === '') return BOT.emptyMessage
+  if (text === '') return [{ text: BOT.emptyMessage }]
 
   // Any other command is someone looking for instructions.
-  if (text.startsWith('/')) return BOT.linkedHelp
+  if (text.startsWith('/')) return [{ text: BOT.linkedHelp }]
 
-  return handleSelfReport(store, extractDangerSigns, channel, text.slice(0, MAX_REPORT_LENGTH))
+  const report = text.slice(0, MAX_REPORT_LENGTH)
+  const survey = await openSurvey(store, chatId)
+  if (survey !== null) {
+    const replies = await handleSurveyMessage(store, extractDangerSigns, channel, survey, report)
+    if (replies !== null) return replies
+  }
+
+  return [{ text: await handleSelfReport(store, extractDangerSigns, channel, report) }]
 }
 
 /** Makes sure the database session is live before a unit of work. See bot/supabase.ts. */
@@ -91,19 +119,22 @@ async function handleOneMessage(
   if (message.chat.type !== 'private') return
 
   const chatId = message.chat.id
-  let reply: string
+  let replies: Outgoing[]
   try {
     await ensureSession()
-    reply = await replyTo(store, limiter, message)
+    replies = await replyTo(store, limiter, message)
   } catch (caught) {
     console.error('[bot] handling chat ' + chatId + ' failed: ' + String(caught))
     // She must never be left with silence after writing in.
-    reply = BOT.reportFailed
+    replies = [{ text: BOT.reportFailed }]
   }
 
-  const outcome = await telegram.sendMessage(chatId, reply)
-  if (!outcome.ok) {
-    console.error('[bot] reply to ' + chatId + ' failed: ' + (outcome.description ?? 'unknown'))
+  // In order: a reply to what she wrote comes before the question asked again.
+  for (const reply of replies) {
+    const outcome = await telegram.sendMessage(chatId, reply.text, reply.keyboard)
+    if (!outcome.ok) {
+      console.error('[bot] reply to ' + chatId + ' failed: ' + (outcome.description ?? 'unknown'))
+    }
   }
 }
 
@@ -158,14 +189,25 @@ function startReminderSweep(
   config: BotConfig,
 ): NodeJS.Timeout {
   let sweeping = false
+  // Each step on its own: a failure in the newer ones (before 008 is applied,
+  // say) must not stop the visit reminders that were already working.
+  const step = async (name: string, run: () => Promise<number>, done: (n: number) => string) => {
+    try {
+      const n = await run()
+      if (n > 0) console.log('[bot] ' + done(n))
+    } catch (caught) {
+      console.error('[bot] ' + name + ' failed: ' + String(caught))
+    }
+  }
   const sweep = () => {
     // A slow sweep must not overlap the next one.
     if (sweeping) return
     sweeping = true
     ensureSession()
-      .then(() => sendDueReminders(store, telegram))
-      .then((sent) => {
-        if (sent > 0) console.log('[bot] sent ' + sent + ' visit reminder(s)')
+      .then(async () => {
+        await step('reminder sweep', () => sendDueReminders(store, telegram), (n) => `sent ${n} visit reminder(s)`)
+        await step('missed-visit sweep', () => sendMissedVisitNotices(store, telegram), (n) => `sent ${n} missed-visit notice(s)`)
+        await step('survey expiry', () => expireSurveys(store), (n) => `closed ${n} unfinished survey(s)`)
       })
       .catch((caught: unknown) => {
         console.error('[bot] reminder sweep failed: ' + String(caught))
@@ -206,7 +248,17 @@ function startStaffAlerts(
         }
         const relayed = await alerter.sweep()
         await alerter.digest()
-        return relayed
+        // Separately caught: before 008 is applied these fail, and the
+        // escalation alerts above must keep working regardless.
+        const missed = await alerter.missedVisits().catch((caught: unknown) => {
+          console.error('[bot] staff missed-visit notices failed: ' + String(caught))
+          return 0
+        })
+        const answers = await alerter.surveys().catch((caught: unknown) => {
+          console.error('[bot] staff survey summaries failed: ' + String(caught))
+          return 0
+        })
+        return relayed + missed + answers
       })
       .then((relayed) => {
         if (relayed > 0 && config.send) console.log('[bot] sent ' + relayed + ' staff alert(s)')

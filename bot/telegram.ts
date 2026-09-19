@@ -49,10 +49,33 @@ export interface SendOutcome {
   description?: string
 }
 
+/**
+ * Answer buttons under a message: rows of labels. A pressed button sends its
+ * label as an ordinary text message, so no callback handling is needed and
+ * typing the same word works exactly like pressing it. 'remove' takes the
+ * buttons away when a survey ends.
+ */
+export type Keyboard = readonly (readonly string[])[] | 'remove'
+
+/** One message the bot sends, with its buttons if it has any. */
+export interface Outgoing {
+  text: string
+  keyboard?: Keyboard
+}
+
 export interface TelegramClient {
   /** timeoutSeconds 0 returns at once; used to acknowledge the last batch on shutdown. */
   getUpdates: (offset: number, timeoutSeconds?: number) => Promise<TelegramUpdate[]>
-  sendMessage: (chatId: number, text: string) => Promise<SendOutcome>
+  sendMessage: (chatId: number, text: string, keyboard?: Keyboard) => Promise<SendOutcome>
+}
+
+function replyMarkup(keyboard: Keyboard): unknown {
+  if (keyboard === 'remove') return { remove_keyboard: true }
+  return {
+    keyboard: keyboard.map((row) => row.map((label) => ({ text: label }))),
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  }
 }
 
 /** Telegram refuses a message body over 4096 characters. */
@@ -118,8 +141,12 @@ export function createTelegramClient(
       return envelope.result
     },
 
-    async sendMessage(chatId: number, text: string): Promise<SendOutcome> {
-      const body = { chat_id: chatId, text: text.slice(0, MAX_MESSAGE_LENGTH) }
+    async sendMessage(chatId: number, text: string, keyboard?: Keyboard): Promise<SendOutcome> {
+      const body = {
+        chat_id: chatId,
+        text: text.slice(0, MAX_MESSAGE_LENGTH),
+        ...(keyboard === undefined ? {} : { reply_markup: replyMarkup(keyboard) }),
+      }
       let envelope = await call<unknown>('sendMessage', body, 15000)
 
       // Rate limited: wait as asked, once. A district announcement is the case

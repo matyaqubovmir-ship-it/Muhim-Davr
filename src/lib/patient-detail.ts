@@ -12,6 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { currentGestationalWeek, dueDate } from './registry'
 import type { RiskZone } from './risk'
 import { parseISODate, startOfDay } from './schedule'
+import { sentReminderKind, type SentReminderKind } from './visits'
 
 export interface PatientHeader {
   pregnancyId: string
@@ -94,7 +95,7 @@ export interface StoredVisit {
   targetDate: Date
   status: 'rejalashtirilgan' | 'bajarilgan' | "o'tkazib yuborilgan"
   /** The Telegram reminders that went out for this contact (visit_reminders). */
-  remindersSent: ('ikki_kun' | 'ertalab')[]
+  remindersSent: SentReminderKind[]
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -270,7 +271,7 @@ export async function loadPatientDetail(
   if (!pregnancy.data) return null
 
   const visitRows = (visits.data ?? []) as unknown as Record<string, unknown>[]
-  const sent = new Map<string, ('ikki_kun' | 'ertalab')[]>()
+  const sent = new Map<string, SentReminderKind[]>()
   if (visitRows.length > 0) {
     const reminders = await client
       .from('visit_reminders')
@@ -279,8 +280,8 @@ export async function loadPatientDetail(
     if (reminders.error) throw new Error(reminders.error.message)
     for (const r of (reminders.data ?? []) as Record<string, unknown>[]) {
       const kinds = sent.get(String(r.visit_id)) ?? []
-      const kind = r.kind === 'ertalab' ? 'ertalab' : 'ikki_kun'
-      if (!kinds.includes(kind)) kinds.push(kind)
+      const kind = sentReminderKind(r.kind)
+      if (kind !== null && !kinds.includes(kind)) kinds.push(kind)
       sent.set(String(r.visit_id), kinds)
     }
   }

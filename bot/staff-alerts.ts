@@ -24,10 +24,12 @@
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { STAFF_ALERT } from '../src/lib/labels.ts'
-import { addDays, formatISODate } from '../src/lib/schedule.ts'
+import { addDays, formatISODate, parseISODate } from '../src/lib/schedule.ts'
 import { formatUzbekDate } from './messages.ts'
-import { clinicClock } from './reminders.ts'
-import type { BotStore, OpenEscalation, PlannedVisit } from './store.ts'
+import { latestPerPregnancy, MISSED_VISIT_HOUR, missedVisitWindow } from './missed-visits.ts'
+import { clinicClock, SEND_UNTIL_HOUR } from './reminders.ts'
+import type { BotStore, FinishedSurvey, OpenEscalation, PlannedVisit } from './store.ts'
+import { surveyLines } from './survey.ts'
 import type { TelegramClient } from './telegram.ts'
 
 export interface StaffAlertConfig {
@@ -117,6 +119,53 @@ export function digestText(digest: Digest, appUrl: string | null): string {
   return lines.join('\n')
 }
 
+// --- a contact nobody recorded, and her answers afterwards --------------------
+//
+// One message per unrecorded contact, from 09:00 the next day (the same moment
+// she is told — bot/missed-visits.ts), saying whether she can be reached on
+// Telegram or has to be phoned. When the survey she is sent then closes, her
+// answers follow — unless they raised an escalation, in which case the red
+// alert above already carried them.
+
+/** The unrecorded-contact check runs at most this often; the query is not free. */
+export const MISSED_CHECK_EVERY_MS = 5 * 60_000
+
+function isoToUzbek(iso: string | null): string {
+  const date = iso === null ? null : parseISODate(iso)
+  return date === null ? '—' : formatUzbekDate(date)
+}
+
+function patientLink(pregnancyId: string, appUrl: string | null): string {
+  return appUrl === null ? STAFF_ALERT.openInApp : `${STAFF_ALERT.open}: ${appUrl}/patients/${pregnancyId}`
+}
+
+export function missedVisitAlertText(visit: PlannedVisit, hasTelegram: boolean, appUrl: string | null): string {
+  return [
+    STAFF_ALERT.missedTitle,
+    `${STAFF_ALERT.district}: ${visit.district ?? '—'}`,
+    STAFF_ALERT.missedDate(isoToUzbek(visit.targetDate)),
+    hasTelegram ? STAFF_ALERT.missedTelegram : STAFF_ALERT.missedNoTelegram,
+    '',
+    STAFF_ALERT.missedAction,
+    '',
+    patientLink(visit.pregnancyId, appUrl),
+    STAFF_ALERT.noName,
+  ].join('\n')
+}
+
+export function surveyAlertText(survey: FinishedSurvey, appUrl: string | null): string {
+  return [
+    survey.status === 'muddati_otgan' ? STAFF_ALERT.surveyExpiredTitle : STAFF_ALERT.surveyTitle,
+    `${STAFF_ALERT.district}: ${survey.district ?? '—'}`,
+    ...(survey.visitDate === null ? [] : [STAFF_ALERT.surveyVisit(isoToUzbek(survey.visitDate))]),
+    '',
+    ...surveyLines(survey.answers, { forTelegram: true }),
+    '',
+    patientLink(survey.pregnancyId, appUrl),
+    STAFF_ALERT.noName,
+  ].join('\n')
+}
+
 export function readDigestDay(file: URL = DIGEST_FILE): string | null {
   try {
     const saved = JSON.parse(readFileSync(file, 'utf8')) as { day?: unknown }
@@ -141,6 +190,10 @@ export interface StaffAlerter {
   sweep(): Promise<number>
   /** Sends today's digest if it is 07:00 or later in Tashkent and it has not gone out today. */
   digest(now?: Date): Promise<boolean>
+  /** From 09:00: one message per planned contact that passed unrecorded. Returns how many. */
+  missedVisits(now?: Date): Promise<number>
+  /** Her answers, for each survey closed since the last sweep that raised no alert. Returns how many. */
+  surveys(): Promise<number>
 }
 
 export function createStaffAlerter(
@@ -153,6 +206,13 @@ export function createStaffAlerter(
   let watermark: string | null = null
   let started = false
   let lastDigest: string | null = digestDay.read()
+  let lastMissedCheck: number | null = null
+  /** A dry run claims nothing in the database, so it remembers here what it already logged. */
+  const dryRunLogged = new Set<string>()
+  // Surveys start on their own, and failing to (008 not applied yet) must not
+  // stop the escalation alerts, which need nothing new.
+  let surveyWatermark: string | null = null
+  let surveysStarted = false
 
   return {
     async start() {
@@ -209,6 +269,76 @@ export function createStaffAlerter(
       lastDigest = todayISO
       digestDay.write(todayISO)
       return true
+    },
+
+    async missedVisits(now = new Date()) {
+      const { today, hour } = clinicClock(now)
+      if (hour < MISSED_VISIT_HOUR || hour >= SEND_UNTIL_HOUR) return 0
+      if (lastMissedCheck !== null && now.getTime() - lastMissedCheck < MISSED_CHECK_EVERY_MS) return 0
+      lastMissedCheck = now.getTime()
+
+      const { since, yesterday } = missedVisitWindow(today)
+      const missed = latestPerPregnancy(await store.plannedVisitsBetween(since, yesterday))
+      if (missed.length === 0) return 0
+      const chats = await store.findChatsForPregnancies([...new Set(missed.map((v) => v.pregnancyId))])
+
+      let relayed = 0
+      for (const visit of missed) {
+        const text = missedVisitAlertText(visit, chats.has(visit.pregnancyId), config.appUrl)
+        if (!config.send) {
+          if (dryRunLogged.has(visit.visitId)) continue
+          dryRunLogged.add(visit.visitId)
+          log(`[staff-alert] DRY RUN — would send to chat ${config.chatId}:\n${text}`)
+          relayed++
+          continue
+        }
+
+        if (!(await store.claimStaffVisitAlert(visit.visitId, config.chatId))) continue
+        const outcome = await telegram.sendMessage(config.chatId, text)
+        if (!outcome.ok && !outcome.blocked) {
+          log(`[staff-alert] missed-visit notice failed, will retry: ${outcome.description ?? 'unknown'}`)
+          await store.releaseStaffVisitAlert(visit.visitId, config.chatId).catch((caught: unknown) => {
+            log(`[staff-alert] could not release the claim: ${String(caught)}`)
+          })
+          lastMissedCheck = null
+          break
+        }
+        if (outcome.blocked) log(`[staff-alert] chat ${config.chatId} refused the notice: ${outcome.description ?? 'blocked'}`)
+        relayed++
+      }
+      return relayed
+    },
+
+    async surveys() {
+      if (!surveysStarted) {
+        // Like the escalation watermark: surveys closed before this start are in
+        // the app, and are not replayed into the chat.
+        surveyWatermark = await store.latestSurveyFinishedAt()
+        surveysStarted = true
+        return 0
+      }
+
+      const closed = await store.finishedSurveysAfter(surveyWatermark, SWEEP_LIMIT)
+      let relayed = 0
+      for (const survey of closed) {
+        const answered = Object.keys(survey.answers).length > 0
+        if (survey.escalationId === null && answered) {
+          const text = surveyAlertText(survey, config.appUrl)
+          if (config.send) {
+            const outcome = await telegram.sendMessage(config.chatId, text)
+            if (!outcome.ok && !outcome.blocked) {
+              log(`[staff-alert] survey summary failed, will retry: ${outcome.description ?? 'unknown'}`)
+              break
+            }
+            if (outcome.blocked) log(`[staff-alert] chat ${config.chatId} refused the summary: ${outcome.description ?? 'blocked'}`)
+          } else {
+            log(`[staff-alert] DRY RUN — would send to chat ${config.chatId}:\n${text}`)
+          }
+          relayed++
+        }
+        surveyWatermark = survey.finishedAt
+      }
+      return relayed
     },
   }
 }

@@ -206,3 +206,103 @@ describe('the morning digest', () => {
     expect(lines.join('\n')).toMatch(/DRY RUN — would send the morning digest/)
   })
 })
+
+describe('a contact nobody recorded', () => {
+  const at = (iso: string) => new Date(iso + '+05:00')
+  const noDigest = { read: () => null, write: () => {} }
+
+  function storeWithMissed() {
+    const store = createFakeStore()
+    store.channels.set(100, 'preg-a') // on Telegram
+    store.visits.push(
+      { visitId: 'v-a', pregnancyId: 'preg-a', targetDate: '2026-09-18', district: 'Urganch' },
+      { visitId: 'v-b', pregnancyId: 'preg-b', targetDate: '2026-09-17', district: 'Xiva' }, // no Telegram
+      { visitId: 'v-today', pregnancyId: 'preg-c', targetDate: '2026-09-19', district: 'Gurlan' },
+    )
+    return store
+  }
+
+  it('tells the specialist once per contact, from 09:00, saying who must be phoned', async () => {
+    const store = storeWithMissed()
+    const { client, sent } = fakeTelegram()
+    const alerter = createStaffAlerter(store, client, SEND, () => {}, noDigest)
+
+    expect(await alerter.missedVisits(at('2026-09-19T08:30:00'))).toBe(0)
+    expect(await alerter.missedVisits(at('2026-09-19T09:05:00'))).toBe(2)
+    // Past the throttle, and still nothing new to say.
+    expect(await alerter.missedVisits(at('2026-09-19T09:15:00'))).toBe(0)
+    expect(sent).toHaveLength(2)
+
+    const [xiva, urganch] = sent.map((s) => s.text)
+    expect(urganch).toContain('ko‘rik qayd etilmadi')
+    expect(urganch).toContain('Rejadagi sana: 18.09.2026')
+    expect(urganch).toContain('Telegram: ulangan')
+    expect(urganch).toContain('https://muhim-davr.example/patients/preg-a')
+    expect(xiva).toContain('Telegram: ulanmagan — telefon orqali bog‘lanish kerak.')
+    expect(sent.every((s) => s.chatId === SEND.chatId)).toBe(true)
+  })
+
+  it('retries a notice whose send failed', async () => {
+    const store = storeWithMissed()
+    const { client, sent } = fakeTelegram([{ ok: false, blocked: false, description: 'timeout' }])
+    const alerter = createStaffAlerter(store, client, SEND, () => {}, noDigest)
+    expect(await alerter.missedVisits(at('2026-09-19T09:05:00'))).toBe(0)
+    expect(await alerter.missedVisits(at('2026-09-19T09:06:00'))).toBe(2)
+    expect(sent).toHaveLength(3)
+  })
+
+  it('only logs in a dry run, once per contact, and claims nothing', async () => {
+    const store = storeWithMissed()
+    const { client, sent } = fakeTelegram()
+    const lines: string[] = []
+    const alerter = createStaffAlerter(store, client, DRY, (l) => lines.push(l), noDigest)
+    await alerter.missedVisits(at('2026-09-19T09:05:00'))
+    await alerter.missedVisits(at('2026-09-19T09:15:00'))
+    expect(sent).toEqual([])
+    expect(lines.filter((l) => l.includes('ko‘rik qayd etilmadi'))).toHaveLength(2)
+    expect(store.staffClaims.size).toBe(0)
+  })
+})
+
+describe('her survey answers', () => {
+  const noDigest = { read: () => null, write: () => {} }
+
+  async function closedSurvey(store: FakeStore, chatId: number, answers: Record<string, unknown>, escalationId: string | null = null) {
+    const id = await store.createSurvey({ pregnancyId: `preg-${chatId}`, telegramChatId: chatId, visitId: 'v-1', step: 'bp', expiresAt: new Date('2026-09-20T00:00:00Z') })
+    await store.closeSurvey(id!, { status: 'yakunlangan', answers, triageLevel: 'none', escalationId })
+  }
+
+  it('relays a closed survey’s answers without her own words, and not one from before the start', async () => {
+    const store = createFakeStore()
+    store.districts.set('preg-2', 'Urganch')
+    store.visits.push({ visitId: 'v-1', pregnancyId: 'preg-2', targetDate: '2026-09-18', district: 'Urganch' })
+    await closedSurvey(store, 1, { bp: null })
+    const { client, sent } = fakeTelegram()
+    const alerter = createStaffAlerter(store, client, SEND, () => {}, noDigest)
+
+    expect(await alerter.surveys()).toBe(0) // start: the one above stays in the app
+    await closedSurvey(store, 2, { bp: { systolic: 150, diastolic: 95 }, vaginal_bleeding: false, fever: true, other: 'mening ismim Nodira' })
+    expect(await alerter.surveys()).toBe(1)
+    expect(await alerter.surveys()).toBe(0)
+
+    const text = sent[0].text
+    expect(text).toContain('so‘rovnoma javoblari')
+    expect(text).toContain('Tuman: Urganch')
+    expect(text).toContain('Qayd etilmagan ko‘rik: 18.09.2026')
+    expect(text).toContain('Qon bosimi (uyda o‘lchangan): 150/95')
+    expect(text).toContain('Isitma: ha')
+    expect(text).toContain('Qindan qon ketishi: yo‘q')
+    expect(text).toContain('Qo‘shimcha: yozgan — ilovada o‘qing')
+    expect(text).not.toContain('Nodira')
+  })
+
+  it('skips a survey that already raised a red alert', async () => {
+    const store = createFakeStore()
+    const { client, sent } = fakeTelegram()
+    const alerter = createStaffAlerter(store, client, SEND, () => {}, noDigest)
+    await alerter.surveys()
+    await closedSurvey(store, 3, { vaginal_bleeding: true }, 'escalation-9')
+    expect(await alerter.surveys()).toBe(0)
+    expect(sent).toEqual([])
+  })
+})

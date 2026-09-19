@@ -1,4 +1,4 @@
-import { UI, VISITS_UI } from '../lib/labels'
+import { reminderKindLabel, UI, VISITS_UI } from '../lib/labels'
 import type { StoredVisit } from '../lib/patient-detail'
 import { formatDay } from '../lib/registry'
 import { startOfDay } from '../lib/schedule'
@@ -81,7 +81,7 @@ export function StoredSchedule({
                       </span>
                       {visit.remindersSent.map((kind) => (
                         <span key={kind} className="rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800 ring-1 ring-sky-200">
-                          {kind === 'ikki_kun' ? VISITS_UI.reminderTwoDays : VISITS_UI.reminderMorning}
+                          {reminderKindLabel(kind)}
                         </span>
                       ))}
                     </>
