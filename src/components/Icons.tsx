@@ -173,19 +173,10 @@ export function Spinner({ size = 16, className = '' }: IconProps) {
   )
 }
 
-/** The product mark: a rounded tile with a pulse line, in the brand colour. */
+/**
+ * The product mark: pulse line into mother and child, over the three zone dots.
+ * Decorative — the app name always sits next to it — so it has an empty alt.
+ */
 export function LogoMark({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="shrink-0">
-      <rect width="32" height="32" rx="8" className="fill-brand" />
-      <path
-        d="M6 17h5l2.5-6 4 11 3-8 1.5 3H26"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
+  return <img src="/logo-mark.png" width={size} height={size} alt="" aria-hidden="true" className="shrink-0" />
 }
