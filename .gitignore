@@ -30,3 +30,9 @@ dist-ssr
 bot/.poll-offset.json
 # The last day the specialist's morning digest went out (bot/staff-alerts.ts)
 bot/.staff-digest.json
+
+# Pitch decks live outside the repo (large binaries; shared as files, not code)
+*.pptx
+Muhim_Davr_*.pdf
+# Office lock files
+~$*
